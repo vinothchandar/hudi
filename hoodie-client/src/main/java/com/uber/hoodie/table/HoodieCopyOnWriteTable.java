@@ -70,18 +70,6 @@ import org.apache.spark.api.java.function.PairFlatMapFunction;
 import scala.Option;
 import scala.Tuple2;
 
-import java.io.IOException;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
-
 /**
  * Implementation of a very heavily read-optimized Hoodie Table where
  *
@@ -92,8 +80,9 @@ import java.util.stream.Collectors;
  *
  */
 public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends HoodieTable<T> {
-    public HoodieCopyOnWriteTable(HoodieWriteConfig config, HoodieTableMetaClient metaClient) {
-        super(config, metaClient);
+
+    public HoodieCopyOnWriteTable(HoodieWriteConfig config, HoodieTableMetaClient metaClient, JavaSparkContext jssc) {
+        super(config, metaClient, jssc);
     }
 
     private static Logger logger = LogManager.getLogger(HoodieCopyOnWriteTable.class);
@@ -490,7 +479,7 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
     }
 
     @Override
-    public Optional<HoodieCompactionMetadata> compact(JavaSparkContext jsc) {
+    public Optional<HoodieCompactionMetadata> compact() {
         logger.info("Nothing to compact in COW storage format");
         return Optional.empty();
     }
@@ -503,7 +492,7 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
      * @throws IllegalArgumentException if unknown cleaning policy is provided
      */
     @Override
-    public List<HoodieCleanStat> clean(JavaSparkContext jsc) {
+    public List<HoodieCleanStat> clean() {
         try {
             List<String> partitionsToClean =
                 FSUtils.getAllPartitionPaths(getFs(), getMetaClient().getBasePath(), config.shouldAssumeDatePartitioning());
@@ -548,7 +537,7 @@ public class HoodieCopyOnWriteTable<T extends HoodieRecordPayload> extends Hoodi
     }
 
     @Override
-    public List<HoodieRollbackStat> rollback(JavaSparkContext jsc, List<String> commits) throws IOException {
+    public List<HoodieRollbackStat> rollback(List<String> commits) throws IOException {
         String actionType = this.getCompactedCommitActionType();
         HoodieActiveTimeline activeTimeline = this.getActiveTimeline();
         List<String> inflights = this.getInflightCommitTimeline().getInstants().map(HoodieInstant::getTimestamp)

@@ -36,6 +36,8 @@ import com.uber.hoodie.exception.HoodieCommitException;
 import com.uber.hoodie.exception.HoodieException;
 import com.uber.hoodie.exception.HoodieRollbackException;
 import com.uber.hoodie.exception.HoodieSavepointException;
+import com.uber.hoodie.index.HoodieIndex;
+
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Iterator;
@@ -44,7 +46,6 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -55,13 +56,19 @@ import org.apache.spark.api.java.JavaSparkContext;
  * Abstract implementation of a HoodieTable
  */
 public abstract class HoodieTable<T extends HoodieRecordPayload> implements Serializable {
+
     protected final HoodieWriteConfig config;
     protected final HoodieTableMetaClient metaClient;
+    protected final HoodieIndex<T> index;
+    protected final transient JavaSparkContext jsc;
+
     private static Logger logger = LogManager.getLogger(HoodieTable.class);
 
-    protected HoodieTable(HoodieWriteConfig config, HoodieTableMetaClient metaClient) {
+    protected HoodieTable(HoodieWriteConfig config, HoodieTableMetaClient metaClient, JavaSparkContext jsc) {
         this.config = config;
         this.metaClient = metaClient;
+        this.jsc = jsc;
+        this.index = HoodieIndex.createIndex(config, jsc);
     }
 
     /**
@@ -95,6 +102,10 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
 
     public HoodieTableMetaClient getMetaClient() {
         return metaClient;
+    }
+
+    public HoodieIndex<T> getIndex() {
+        return index;
     }
 
     public FileSystem getFs() {
@@ -307,12 +318,12 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
 
 
     public static <T extends HoodieRecordPayload> HoodieTable<T> getHoodieTable(
-        HoodieTableMetaClient metaClient, HoodieWriteConfig config) {
+            HoodieTableMetaClient metaClient, HoodieWriteConfig config, JavaSparkContext jssc) {
         switch (metaClient.getTableType()) {
             case COPY_ON_WRITE:
-                return new HoodieCopyOnWriteTable<>(config, metaClient);
+                return new HoodieCopyOnWriteTable<>(config, metaClient, jssc);
             case MERGE_ON_READ:
-                return new HoodieMergeOnReadTable<>(config, metaClient);
+                return new HoodieMergeOnReadTable<>(config, metaClient, jssc);
             default:
                 throw new HoodieException("Unsupported table type :" + metaClient.getTableType());
         }
@@ -322,13 +333,13 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
      * Run Compaction on the table.
      * Compaction arranges the data so that it is optimized for data access
      */
-    public abstract Optional<HoodieCompactionMetadata> compact(JavaSparkContext jsc);
+    public abstract Optional<HoodieCompactionMetadata> compact();
 
     /**
      * Clean partition paths according to cleaning policy and returns the number
      * of files cleaned.
      */
-    public abstract List<HoodieCleanStat> clean(JavaSparkContext jsc);
+    public abstract List<HoodieCleanStat> clean();
 
     /**
      * Rollback the (inflight/committed) record changes with the given commit time.
@@ -337,9 +348,10 @@ public abstract class HoodieTable<T extends HoodieRecordPayload> implements Seri
      * (2) clean indexing data
      * (3) clean new generated parquet files / log blocks
      * (4) Finally, delete .<action>.commit or .<action>.inflight file
+     *
      * @param commits
      * @return
      * @throws HoodieRollbackException
      */
-    public abstract List<HoodieRollbackStat> rollback(JavaSparkContext jsc, List<String> commits) throws IOException;
+    public abstract List<HoodieRollbackStat> rollback(List<String> commits) throws IOException;
 }

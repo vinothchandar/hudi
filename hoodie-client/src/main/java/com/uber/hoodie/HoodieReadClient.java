@@ -87,7 +87,8 @@ public class HoodieReadClient implements Serializable {
         this.fs = FSUtils.getFs();
         // Create a Hoodie table which encapsulated the commits and files visible
         this.hoodieTable = HoodieTable
-                .getHoodieTable(new HoodieTableMetaClient(fs, basePath, true), null);
+                .getHoodieTable(new HoodieTableMetaClient(fs, basePath, true),
+                        HoodieWriteConfig.newBuilder().build(), jsc);
         this.commitTimeline = hoodieTable.getCompletedCompactionCommitTimeline();
         this.index =
                 new HoodieBloomIndex(HoodieWriteConfig.newBuilder().withPath(basePath).build(), jsc);

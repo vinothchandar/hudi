@@ -125,7 +125,7 @@ public class HoodieCommitArchiveLog {
         int maxCommitsToKeep = config.getMaxCommitsToKeep();
         int minCommitsToKeep = config.getMinCommitsToKeep();
 
-        HoodieTable table = HoodieTable.getHoodieTable(new HoodieTableMetaClient(fs, config.getBasePath(), true), config);
+        HoodieTable table = HoodieTable.getHoodieTable(new HoodieTableMetaClient(fs, config.getBasePath(), true), config, null);
 
         // GroupBy each action and limit each action timeline to maxCommitsToKeep
         HoodieTimeline cleanAndRollbackTimeline = table.getActiveTimeline().getTimelineOfActions(Sets.newHashSet(HoodieTimeline.CLEAN_ACTION,

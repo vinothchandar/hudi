@@ -100,17 +100,13 @@ public class HoodieRealtimeTableCompactor implements HoodieCompactor {
     }
 
     log.info("After filtering, Compacting " + operations + " files");
-    List<CompactionWriteStat> updateStatusMap =
-        jsc.parallelize(operations, operations.size())
-            .map(s -> executeCompaction(metaClient, config, s, compactionCommit))
-            .flatMap(new FlatMapFunction<List<CompactionWriteStat>, CompactionWriteStat>() {
-              @Override
-              public Iterator<CompactionWriteStat> call(
-                  List<CompactionWriteStat> compactionWriteStats)
-                  throws Exception {
-                return compactionWriteStats.iterator();
-              }
-            }).collect();
+    HoodieCopyOnWriteTable<HoodieAvroPayload> table =
+            new HoodieCopyOnWriteTable<>(config, metaClient, jsc);
+    List<CompactionWriteStat> updateStatusMap = jsc
+            .parallelize(operations, operations.size())
+            .map(s -> executeCompaction(metaClient, table, config, s, compactionCommit))
+            .flatMap(compactionWriteStats -> compactionWriteStats.iterator())
+            .collect();
 
     HoodieCompactionMetadata metadata = new HoodieCompactionMetadata();
     for (CompactionWriteStat stat : updateStatusMap) {
@@ -135,8 +131,10 @@ public class HoodieRealtimeTableCompactor implements HoodieCompactor {
   }
 
   private List<CompactionWriteStat> executeCompaction(HoodieTableMetaClient metaClient,
-      HoodieWriteConfig config, CompactionOperation operation, String commitTime)
-      throws IOException {
+                                                      HoodieCopyOnWriteTable table,
+                                                      HoodieWriteConfig config,
+                                                      CompactionOperation operation,
+                                                      String commitTime) throws IOException {
     FileSystem fs = FSUtils.getFs();
     Schema readerSchema =
         HoodieAvroUtils.addMetadataFields(new Schema.Parser().parse(config.getSchema()));
@@ -161,8 +159,6 @@ public class HoodieRealtimeTableCompactor implements HoodieCompactor {
     }
 
     // Compacting is very similar to applying updates to existing file
-    HoodieCopyOnWriteTable<HoodieAvroPayload> table =
-        new HoodieCopyOnWriteTable<>(config, metaClient);
     Iterator<List<WriteStatus>> result = table
         .handleUpdate(commitTime, operation.getFileId(), scanner.iterator());
     Iterable<List<WriteStatus>> resultIterable = () -> result;

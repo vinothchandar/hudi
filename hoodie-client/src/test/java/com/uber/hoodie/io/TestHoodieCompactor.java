@@ -107,7 +107,7 @@ public class TestHoodieCompactor {
         HoodieTestUtils.initTableType(basePath, HoodieTableType.COPY_ON_WRITE);
 
         HoodieTableMetaClient metaClient = new HoodieTableMetaClient(FSUtils.getFs(), basePath);
-        HoodieTable table = HoodieTable.getHoodieTable(metaClient, getConfig());
+        HoodieTable table = HoodieTable.getHoodieTable(metaClient, getConfig(), jsc);
 
         compactor.compact(jsc, getConfig(), table);
     }
@@ -116,7 +116,7 @@ public class TestHoodieCompactor {
     public void testCompactionEmpty() throws Exception {
         HoodieTableMetaClient metaClient = new HoodieTableMetaClient(FSUtils.getFs(), basePath);
         HoodieWriteConfig config = getConfig();
-        HoodieTable table = HoodieTable.getHoodieTable(metaClient, config);
+        HoodieTable table = HoodieTable.getHoodieTable(metaClient, config, jsc);
         HoodieWriteClient writeClient = new HoodieWriteClient(jsc, config);
 
         String newCommitTime = writeClient.startCommit();
@@ -146,7 +146,7 @@ public class TestHoodieCompactor {
 
         // Update all the 100 records
         HoodieTableMetaClient metaClient = new HoodieTableMetaClient(fs, basePath);
-        HoodieTable table = HoodieTable.getHoodieTable(metaClient, config);
+        HoodieTable table = HoodieTable.getHoodieTable(metaClient, config, jsc);
 
         newCommitTime = "101";
         writeClient.startCommitWithTime(newCommitTime);
@@ -163,7 +163,7 @@ public class TestHoodieCompactor {
 
         // Verify that all data file has one log file
         metaClient = new HoodieTableMetaClient(fs, basePath);
-        table = HoodieTable.getHoodieTable(metaClient, config);
+        table = HoodieTable.getHoodieTable(metaClient, config, jsc);
         for (String partitionPath : dataGen.getPartitionPaths()) {
             List<FileSlice> groupedLogFiles =
                 table.getRTFileSystemView().getLatestFileSlices(partitionPath)
@@ -176,14 +176,14 @@ public class TestHoodieCompactor {
 
         // Do a compaction
         metaClient = new HoodieTableMetaClient(fs, basePath);
-        table = HoodieTable.getHoodieTable(metaClient, config);
+        table = HoodieTable.getHoodieTable(metaClient, config, jsc);
 
         HoodieCompactionMetadata result =
             compactor.compact(jsc, getConfig(), table);
 
         // Verify that recently written compacted data file has no log file
         metaClient = new HoodieTableMetaClient(fs, basePath);
-        table = HoodieTable.getHoodieTable(metaClient, config);
+        table = HoodieTable.getHoodieTable(metaClient, config, jsc);
         HoodieActiveTimeline timeline = metaClient.getActiveTimeline();
 
         assertTrue("Compaction commit should be > than last insert",

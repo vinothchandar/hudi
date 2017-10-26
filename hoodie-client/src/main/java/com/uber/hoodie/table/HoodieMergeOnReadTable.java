@@ -73,9 +73,8 @@ import java.util.stream.Collectors;
 public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends HoodieCopyOnWriteTable<T> {
     private static Logger logger = LogManager.getLogger(HoodieMergeOnReadTable.class);
 
-    public HoodieMergeOnReadTable(HoodieWriteConfig config,
-        HoodieTableMetaClient metaClient) {
-        super(config, metaClient);
+    public HoodieMergeOnReadTable(HoodieWriteConfig config, HoodieTableMetaClient metaClient, JavaSparkContext jssc) {
+        super(config, metaClient, jssc);
     }
 
     @Override
@@ -91,7 +90,7 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends Hoodi
     }
 
     @Override
-    public Optional<HoodieCompactionMetadata> compact(JavaSparkContext jsc) {
+    public Optional<HoodieCompactionMetadata> compact() {
         logger.info("Checking if compaction needs to be run on " + config.getBasePath());
         Optional<HoodieInstant> lastCompaction = getActiveTimeline().getCompactionTimeline()
             .filterCompletedInstants().lastInstant();
@@ -119,7 +118,7 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends Hoodi
     }
 
     @Override
-    public List<HoodieRollbackStat> rollback(JavaSparkContext jsc, List<String> commits) throws IOException {
+    public List<HoodieRollbackStat> rollback(List<String> commits) throws IOException {
 
         //At the moment, MOR table type does not support nested rollbacks
         if(commits.size() > 1) {

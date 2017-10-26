@@ -25,6 +25,7 @@ import com.uber.hoodie.exception.HoodieException
 import com.uber.hoodie.table.HoodieTable
 import org.apache.hadoop.fs.Path
 import org.apache.log4j.LogManager
+import org.apache.spark.api.java.JavaSparkContext
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.sources.{BaseRelation, TableScan}
 import org.apache.spark.sql.types.StructType
@@ -52,7 +53,7 @@ class IncrementalRelation(val sqlContext: SQLContext,
   if (metaClient.getTableType.equals(HoodieTableType.MERGE_ON_READ)) {
     throw new HoodieException("Incremental view not implemented yet, for merge-on-read datasets")
   }
-  val hoodieTable = HoodieTable.getHoodieTable(metaClient, null)
+  val hoodieTable = HoodieTable.getHoodieTable(metaClient, null, new JavaSparkContext(sqlContext.sparkContext))
   val commitTimeline = hoodieTable.getCompletedCompactionCommitTimeline();
   if (commitTimeline.empty()) {
     throw new HoodieException("No instants to incrementally pull")

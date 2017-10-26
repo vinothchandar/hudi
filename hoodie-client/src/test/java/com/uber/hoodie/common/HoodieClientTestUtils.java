@@ -27,11 +27,13 @@ import com.uber.hoodie.common.table.TableFileSystemView;
 import com.uber.hoodie.common.table.timeline.HoodieInstant;
 import com.uber.hoodie.common.table.view.HoodieTableFileSystemView;
 import com.uber.hoodie.common.util.FSUtils;
+import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.hoodie.exception.HoodieException;
 import com.uber.hoodie.table.HoodieTable;
 
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.Dataset;
 import org.apache.spark.sql.Row;
 import org.apache.spark.sql.SQLContext;
@@ -168,8 +170,9 @@ public class HoodieClientTestUtils {
                                     String... paths) {
         List<String> filteredPaths = new ArrayList<>();
         try {
+            HoodieWriteConfig wcfg = HoodieWriteConfig.newBuilder().build();
             HoodieTable hoodieTable = HoodieTable
-                    .getHoodieTable(new HoodieTableMetaClient(fs, basePath, true), null);
+                    .getHoodieTable(new HoodieTableMetaClient(fs, basePath, true), wcfg, new JavaSparkContext(sqlContext.sparkContext()));
             for (String path : paths) {
                 TableFileSystemView.ReadOptimizedView fileSystemView = new HoodieTableFileSystemView(hoodieTable.getMetaClient(),
                         hoodieTable.getCompletedCommitTimeline(), fs.globStatus(new Path(path)));
