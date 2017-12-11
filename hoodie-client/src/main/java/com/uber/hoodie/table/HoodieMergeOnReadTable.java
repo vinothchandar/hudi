@@ -33,19 +33,11 @@ import com.uber.hoodie.common.table.log.block.HoodieCommandBlock;
 import com.uber.hoodie.common.table.log.block.HoodieLogBlock;
 import com.uber.hoodie.common.table.timeline.HoodieActiveTimeline;
 import com.uber.hoodie.common.table.timeline.HoodieInstant;
-import com.uber.hoodie.common.util.FSUtils;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.hoodie.exception.HoodieCompactionException;
 import com.uber.hoodie.exception.HoodieRollbackException;
 import com.uber.hoodie.io.HoodieAppendHandle;
 import com.uber.hoodie.io.compact.HoodieRealtimeTableCompactor;
-import org.apache.hadoop.fs.FileStatus;
-import org.apache.hadoop.fs.Path;
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
-import org.apache.spark.api.java.JavaSparkContext;
-import org.apache.spark.api.java.function.Function;
-
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
@@ -56,6 +48,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import org.apache.hadoop.fs.FileStatus;
+import org.apache.hadoop.fs.Path;
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
+import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.api.java.function.Function;
 
 
 /**
@@ -75,8 +73,7 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
 
   private static Logger logger = LogManager.getLogger(HoodieMergeOnReadTable.class);
 
-  public HoodieMergeOnReadTable(HoodieWriteConfig config,
-      HoodieTableMetaClient metaClient) {
+  public HoodieMergeOnReadTable(HoodieWriteConfig config, HoodieTableMetaClient metaClient) {
     super(config, metaClient);
   }
 
@@ -198,7 +195,7 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
                               .onParentPath(
                                   new Path(this.getMetaClient().getBasePath(), partitionPath))
                               .withFileId(wStat.getFileId()).overBaseCommit(wStat.getPrevCommit())
-                              .withFs(FSUtils.getFs())
+                              .withFs(getMetaClient().getFs())
                               .withFileExtension(HoodieLogFile.DELTA_EXTENSION).build();
                           Long numRollbackBlocks = 0L;
                           // generate metadata
@@ -218,7 +215,8 @@ public class HoodieMergeOnReadTable<T extends HoodieRecordPayload> extends
                             numRollbackBlocks++;
                           }
                           filesToNumBlocksRollback
-                              .put(FSUtils.getFs().getFileStatus(writer.getLogFile().getPath()),
+                              .put(getMetaClient().getFs()
+                                      .getFileStatus(writer.getLogFile().getPath()),
                                   numRollbackBlocks);
                         } catch (IOException | InterruptedException io) {
                           throw new HoodieRollbackException(
