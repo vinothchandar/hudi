@@ -55,7 +55,6 @@ public class HdfsTestService {
   private MiniDFSCluster miniDfsCluster;
 
   public HdfsTestService() {
-    hadoopConf = HoodieTestUtils.getDefaultHadoopConf();
     workDir = Files.createTempDir().getAbsolutePath();
   }
 
@@ -66,10 +65,7 @@ public class HdfsTestService {
   public MiniDFSCluster start(boolean format) throws IOException {
     Preconditions
         .checkState(workDir != null, "The work dir must be set before starting cluster.");
-
-    if (hadoopConf == null) {
-      hadoopConf = HoodieTestUtils.getDefaultHadoopConf();
-    }
+    hadoopConf = HoodieTestUtils.getDefaultHadoopConf();
 
     // If clean, then remove the work dir so we can start fresh.
     String localDFSLocation = getDFSLocation(workDir);

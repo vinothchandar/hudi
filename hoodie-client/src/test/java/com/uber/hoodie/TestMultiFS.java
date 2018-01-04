@@ -90,7 +90,6 @@ public class TestMultiFS implements Serializable {
     if (jsc != null) {
       jsc.stop();
     }
-    FSUtils.setFs(null);
   }
 
   @Test
