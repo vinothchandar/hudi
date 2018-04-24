@@ -19,7 +19,6 @@ package com.uber.hoodie.io.storage;
 import com.uber.hoodie.avro.HoodieAvroWriteSupport;
 import com.uber.hoodie.common.model.HoodieRecord;
 import com.uber.hoodie.common.model.HoodieRecordPayload;
-import com.uber.hoodie.common.util.FSUtils;
 import com.uber.hoodie.common.util.HoodieAvroUtils;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
@@ -53,7 +52,8 @@ public class HoodieParquetWriter<T extends HoodieRecordPayload, R extends Indexe
 
   private static Configuration registerFileSystem(Path file, Configuration conf) {
     Configuration returnConf = new Configuration(conf);
-    String scheme = FSUtils.getFs(file.toString(), conf).getScheme();
+    //String scheme = FSUtils.getFs(file.toString(), conf).getScheme();
+    String scheme = file.toUri().getScheme();
     returnConf.set("fs." + HoodieWrapperFileSystem.getHoodieScheme(scheme) + ".impl",
         HoodieWrapperFileSystem.class.getName());
     return returnConf;

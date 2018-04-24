@@ -68,6 +68,7 @@ public class HoodieWrapperFileSystem extends FileSystem {
     SUPPORT_SCHEMES.add("hdfs");
     SUPPORT_SCHEMES.add("s3");
     SUPPORT_SCHEMES.add("s3a");
+    SUPPORT_SCHEMES.add("igfs");
 
 
     // Hoodie currently relies on underlying object store being fully
@@ -764,15 +765,17 @@ public class HoodieWrapperFileSystem extends FileSystem {
 
   public static Path convertToHoodiePath(Path file, Configuration conf) {
     try {
-      String scheme = FSUtils.getFs(file.toString(), conf).getScheme();
-      return convertPathWithScheme(file, getHoodieScheme(scheme));
+      return convertPathWithScheme(file, getHoodieScheme(file.toUri().getScheme()));
+//      String scheme = FSUtils.getFs(file.toString(), conf).getScheme();
+//      return convertPathWithScheme(file, getHoodieScheme(scheme));
     } catch (HoodieIOException e) {
       throw e;
     }
   }
 
   private Path convertToDefaultPath(Path oldPath) {
-    return convertPathWithScheme(oldPath, fileSystem.getScheme());
+    return convertPathWithScheme(oldPath, oldPath.toUri().getScheme());
+//    return convertPathWithScheme(oldPath, fileSystem.getScheme());
   }
 
   private Path[] convertDefaults(Path[] psrcs) {
