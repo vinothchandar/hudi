@@ -1,0 +1,324 @@
+{
+    "date_created": "2018-06-27 16:16:36 -0753",
+    "fields": [
+        {
+            "default": null,
+            "name": "fare",
+            "type": [
+                "null",
+                "double"
+            ]
+        },
+        {
+            "default": null,
+            "name": "trip_uuid",
+            "type": [
+                "null",
+                "string"
+            ]
+        },
+        {
+            "default": null,
+            "name": "driver_feedback",
+            "type": [
+                "null",
+                {
+                    "fields": [
+                        {
+                            "default": null,
+                            "name": "comment",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "rating",
+                            "type": [
+                                "null",
+                                "double"
+                            ]
+                        }
+                    ],
+                    "name": "driver_feedback",
+                    "type": "record"
+                }
+            ]
+        },
+        {
+            "default": null,
+            "name": "rider_id",
+            "type": [
+                "null",
+                "string"
+            ]
+        },
+        {
+            "default": null,
+            "name": "end_address",
+            "type": [
+                "null",
+                "string"
+            ]
+        },
+        {
+            "default": null,
+            "name": "end_coords",
+            "type": [
+                "null",
+                {
+                    "items": "long",
+                    "type": "array"
+                }
+            ]
+        },
+        {
+            "default": null,
+            "name": "end_ts",
+            "type": [
+                "null",
+                "long"
+            ]
+        },
+        {
+            "default": null,
+            "name": "start_ts",
+            "type": [
+                "null",
+                "long"
+            ]
+        },
+        {
+            "default": null,
+            "name": "waypoints",
+            "type": [
+                "null",
+                {
+                    "fields": [
+                        {
+                            "default": null,
+                            "name": "num_points",
+                            "type": [
+                                "null",
+                                "long"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "data",
+                            "type": [
+                                "null",
+                                {
+                                    "items": {
+                                        "fields": [
+                                            {
+                                                "default": null,
+                                                "name": "lat",
+                                                "type": [
+                                                    "null",
+                                                    "double"
+                                                ]
+                                            },
+                                            {
+                                                "default": null,
+                                                "name": "lon",
+                                                "type": [
+                                                    "null",
+                                                    "double"
+                                                ]
+                                            },
+                                            {
+                                                "default": null,
+                                                "name": "speed",
+                                                "type": [
+                                                    "null",
+                                                    "double"
+                                                ]
+                                            },
+                                            {
+                                                "default": null,
+                                                "name": "ts",
+                                                "type": [
+                                                    "null",
+                                                    "long"
+                                                ]
+                                            }
+                                        ],
+                                        "name": "dataItems",
+                                        "type": "record"
+                                    },
+                                    "type": "array"
+                                }
+                            ]
+                        }
+                    ],
+                    "name": "waypoints",
+                    "type": "record"
+                }
+            ]
+        },
+        {
+            "default": null,
+            "name": "total_distance_miles",
+            "type": [
+                "null",
+                "double"
+            ]
+        },
+        {
+            "default": null,
+            "name": "start_address",
+            "type": [
+                "null",
+                "string"
+            ]
+        },
+        {
+            "default": null,
+            "name": "city_id",
+            "type": [
+                "null",
+                "long"
+            ]
+        },
+        {
+            "default": null,
+            "name": "driver_id",
+            "type": [
+                "null",
+                "string"
+            ]
+        },
+        {
+            "default": null,
+            "name": "rider_feedback",
+            "type": [
+                "null",
+                {
+                    "fields": [
+                        {
+                            "default": null,
+                            "name": "comment",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "rating",
+                            "type": [
+                                "null",
+                                "long"
+                            ]
+                        }
+                    ],
+                    "name": "rider_feedback",
+                    "type": "record"
+                }
+            ]
+        },
+        {
+            "default": null,
+            "name": "vehicle",
+            "type": [
+                "null",
+                {
+                    "fields": [
+                        {
+                            "default": null,
+                            "name": "color",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "make",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "model",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "license_plate",
+                            "type": [
+                                "null",
+                                "string"
+                            ]
+                        },
+                        {
+                            "default": null,
+                            "name": "year",
+                            "type": [
+                                "null",
+                                "long"
+                            ]
+                        }
+                    ],
+                    "name": "vehicle",
+                    "type": "record"
+                }
+            ]
+        },
+        {
+            "default": null,
+            "name": "eta_estimate",
+            "type": [
+                "null",
+                "long"
+            ]
+        },
+        {
+            "default": null,
+            "name": "tip",
+            "type": [
+                "null",
+                "double"
+            ]
+        },
+        {
+            "default": null,
+            "name": "eta_actual",
+            "type": [
+                "null",
+                "double"
+            ]
+        },
+        {
+            "default": null,
+            "name": "type",
+            "type": [
+                "null",
+                "string"
+            ]
+        },
+        {
+            "default": null,
+            "name": "start_coords",
+            "type": [
+                "null",
+                {
+                    "items": "long",
+                    "type": "array"
+                }
+            ]
+        }
+    ],
+    "name": "SCHEMA",
+    "namespace": "adhoc.HOODIE.SAMPLE",
+    "schemaVersion": 1,
+    "schema_id": 1,
+    "type": "record"
+}

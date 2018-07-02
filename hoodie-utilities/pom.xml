@@ -171,6 +171,12 @@
     </dependency>
 
     <dependency>
+      <groupId>com.uber.hoodie</groupId>
+      <artifactId>hoodie-hadoop-mr</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <dependency>
       <groupId>org.apache.hive</groupId>
       <artifactId>hive-jdbc</artifactId>
       <version>${hive.version}-cdh${cdh.version}</version>
@@ -261,6 +267,12 @@
     <dependency>
       <groupId>com.beust</groupId>
       <artifactId>jcommander</artifactId>
+    </dependency>
+
+    <dependency>
+      <groupId>com.github.javafaker</groupId>
+      <artifactId>javafaker</artifactId>
+      <version>0.15</version>
     </dependency>
 
     <dependency>
