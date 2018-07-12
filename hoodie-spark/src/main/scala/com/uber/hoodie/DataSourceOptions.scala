@@ -112,7 +112,7 @@ object DataSourceWriteOptions {
     * This will render any value set for `PRECOMBINE_FIELD_OPT_VAL` in-effective
     */
   val PAYLOAD_CLASS_OPT_KEY = "hoodie.datasource.write.payload.class"
-  val DEFAULT_PAYLOAD_OPT_VAL = classOf[OverwriteWithLatestAvroPayload].getName
+  val DEFAULT_PAYLOAD_OPT_VAL = classOf[OverwriteWithLatestRowPayload].getName
 
   /**
     * Record key field. Value to be used as the `recordKey` component of `HoodieKey`. Actual value

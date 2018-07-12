@@ -30,11 +30,11 @@ import com.uber.hoodie.index.HoodieIndex;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.reflect.ConstructorUtils;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
+import org.apache.spark.sql.Row;
 
 /**
  * Utilities used throughout the data source
@@ -44,12 +44,19 @@ public class DataSourceUtils {
   /**
    * Obtain value of the provided field as string, denoted by dot notation. e.g: a.b.c
    */
-  public static String getNestedFieldValAsString(GenericRecord record, String fieldName) {
+  public static String getNestedFieldValAsString(Row row, String fieldName) {
     String[] parts = fieldName.split("\\.");
-    GenericRecord valueNode = record;
+    Row valueNode = row;
     for (int i = 0; i < parts.length; i++) {
       String part = parts[i];
-      Object val = valueNode.get(part);
+      int ind;
+      try {
+        ind = valueNode.fieldIndex(part);
+      } catch (IllegalArgumentException ia) {
+        throw new HoodieException("Cannot find a field at part value :" + part);
+      }
+
+      Object val = valueNode.get(ind);
       if (val == null) {
         break;
       }
@@ -58,11 +65,10 @@ public class DataSourceUtils {
       if (i == parts.length - 1) {
         return val.toString();
       } else {
-        // VC: Need a test here
-        if (!(val instanceof GenericRecord)) {
+        if (!(val instanceof Row)) {
           throw new HoodieException("Cannot find a record at part value :" + part);
         }
-        valueNode = (GenericRecord) val;
+        valueNode = (Row) val;
       }
     }
     throw new HoodieException(fieldName + " field not found in record");
@@ -84,11 +90,11 @@ public class DataSourceUtils {
   /**
    * Create a payload class via reflection, passing in an ordering/precombine value.
    */
-  public static HoodieRecordPayload createPayload(String payloadClass, GenericRecord record,
+  public static HoodieRecordPayload createPayload(String payloadClass, Row row,
       Comparable orderingVal) throws IOException {
     try {
       return (HoodieRecordPayload) ConstructorUtils.invokeConstructor(Class.forName(payloadClass),
-          (Object) record, (Object) orderingVal);
+          (Object) row, (Object) orderingVal);
     } catch (Throwable e) {
       throw new IOException("Could not create payload for class: " + payloadClass, e);
     }
@@ -133,9 +139,9 @@ public class DataSourceUtils {
     }
   }
 
-  public static HoodieRecord createHoodieRecord(GenericRecord gr, Comparable orderingVal,
+  public static HoodieRecord createHoodieRecord(Row row, Comparable orderingVal,
       HoodieKey hKey, String payloadClass) throws IOException {
-    HoodieRecordPayload payload = DataSourceUtils.createPayload(payloadClass, gr, orderingVal);
+    HoodieRecordPayload payload = DataSourceUtils.createPayload(payloadClass, row, orderingVal);
     return new HoodieRecord<>(hKey, payload);
   }
 }

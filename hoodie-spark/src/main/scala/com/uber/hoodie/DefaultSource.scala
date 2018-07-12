@@ -27,12 +27,10 @@ import com.uber.hoodie.DataSourceWriteOptions._
 import com.uber.hoodie.common.table.{HoodieTableConfig, HoodieTableMetaClient}
 import com.uber.hoodie.config.HoodieWriteConfig
 import com.uber.hoodie.exception.HoodieException
-import org.apache.avro.generic.GenericRecord
 import org.apache.commons.configuration.PropertiesConfiguration
 import org.apache.hadoop.fs.Path
 import org.apache.log4j.LogManager
 import org.apache.spark.api.java.JavaSparkContext
-import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.execution.datasources.DataSource
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.StructType
@@ -155,16 +153,14 @@ class DefaultSource extends RelationProvider
       Array(classOf[org.apache.avro.generic.GenericData],
         classOf[org.apache.avro.Schema]))
     val schema = AvroConversionUtils.convertStructTypeToAvroSchema(df.schema, structName, nameSpace)
-    sparkContext.getConf.registerAvroSchemas(schema)
-    log.info(s"Registered avro schema : ${schema.toString(true)}");
 
     // Convert to RDD[HoodieRecord]
     val keyGenerator = DataSourceUtils.createKeyGenerator(
       parameters(KEYGENERATOR_CLASS_OPT_KEY),
       toPropertiesConfiguration(parameters)
     )
-    val genericRecords: RDD[GenericRecord] = AvroConversionUtils.createRdd(df, structName, nameSpace)
-    val hoodieRecords = genericRecords.map(gr => {
+
+    val hoodieRecords = df.rdd.map(gr => {
       val orderingVal = DataSourceUtils.getNestedFieldValAsString(
         gr, parameters(PRECOMBINE_FIELD_OPT_KEY)).asInstanceOf[Comparable[_]]
       DataSourceUtils.createHoodieRecord(gr,

@@ -20,8 +20,8 @@ package com.uber.hoodie;
 
 import com.uber.hoodie.common.model.HoodieKey;
 import java.io.Serializable;
-import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.configuration.PropertiesConfiguration;
+import org.apache.spark.sql.Row;
 
 /**
  * Abstract class to extend for plugging in extraction of
@@ -37,7 +37,7 @@ public abstract class KeyGenerator implements Serializable {
   }
 
   /**
-   * Generate a Hoodie Key out of provided generic record.
+   * Generate a Hoodie Key out of provided row.
    */
-  public abstract HoodieKey getKey(GenericRecord record);
+  public abstract HoodieKey getKey(Row row);
 }

@@ -22,6 +22,7 @@ import java.sql.{Date, Timestamp}
 import java.util
 
 import com.databricks.spark.avro.SchemaConverters
+import com.uber.hoodie.common.util.HoodieAvroUtils
 import org.apache.avro.generic.GenericData.Record
 import org.apache.avro.generic.GenericRecord
 import org.apache.avro.{Schema, SchemaBuilder}
@@ -109,6 +110,7 @@ object AvroConversionUtils {
         val builder = SchemaBuilder.record(structName).namespace(recordNamespace)
         val schema: Schema = SchemaConverters.convertStructToAvro(
           structType, builder, recordNamespace)
+        val schemaWithMetaFields = HoodieAvroUtils.addMetadataFields(schema)
         val fieldConverters = structType.fields.map(field =>
           createConverterToAvro(
             field.dataType,
@@ -118,7 +120,7 @@ object AvroConversionUtils {
           if (item == null) {
             null
           } else {
-            val record = new Record(schema)
+            val record = new Record(schemaWithMetaFields)
             val convertersIterator = fieldConverters.iterator
             val fieldNamesIterator = dataType.asInstanceOf[StructType].fieldNames.iterator
             val rowIterator = item.asInstanceOf[Row].toSeq.iterator

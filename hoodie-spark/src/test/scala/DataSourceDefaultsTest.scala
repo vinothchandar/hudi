@@ -16,11 +16,12 @@
  *
  */
 
-import com.uber.hoodie.common.util.SchemaTestUtil
+import com.uber.hoodie.common.util.{SchemaTestUtil, TestRecord}
 import com.uber.hoodie.exception.HoodieException
-import com.uber.hoodie.{DataSourceWriteOptions, OverwriteWithLatestAvroPayload, SimpleKeyGenerator}
+import com.uber.hoodie.{DataSourceWriteOptions, OverwriteWithLatestRowPayload, SimpleKeyGenerator}
 import org.apache.avro.generic.GenericRecord
 import org.apache.commons.configuration.PropertiesConfiguration
+import org.apache.spark.sql.{Row, SparkSession}
 import org.junit.Assert._
 import org.junit.{Before, Test}
 import org.scalatest.junit.AssertionsForJUnit
@@ -31,11 +32,19 @@ import org.scalatest.junit.AssertionsForJUnit
 class DataSourceDefaultsTest extends AssertionsForJUnit {
 
   val schema = SchemaTestUtil.getComplexEvolvedSchema
-  var baseRecord: GenericRecord = null
+  var row: Row = null
+  var spark: SparkSession = null
+
 
   @Before def initialize(): Unit = {
-    baseRecord = SchemaTestUtil
-      .generateAvroRecordFromJson(schema, 1, "001", "f1")
+    spark = SparkSession.builder
+      .master("local[2]")
+      .getOrCreate
+    row = convertToRow(new TestRecord("001", 1, "f1"))
+  }
+
+  private def convertToRow(testRecord: TestRecord): Row = {
+    spark.read.json(spark.sparkContext.parallelize(List(testRecord.toJsonString))).collect()(0)
   }
 
 
@@ -48,7 +57,7 @@ class DataSourceDefaultsTest extends AssertionsForJUnit {
 
   @Test def testSimpleKeyGenerator() = {
     // top level, valid fields
-    val hk1 = new SimpleKeyGenerator(getKeyConfig("field1", "name")).getKey(baseRecord)
+    val hk1 = new SimpleKeyGenerator(getKeyConfig("field1", "name")).getKey(row)
     assertEquals("field1", hk1.getRecordKey)
     assertEquals("name1", hk1.getPartitionPath)
 
@@ -56,7 +65,7 @@ class DataSourceDefaultsTest extends AssertionsForJUnit {
     try {
       val props = new PropertiesConfiguration()
       props.addProperty(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY, "field1")
-      new SimpleKeyGenerator(props).getKey(baseRecord)
+      new SimpleKeyGenerator(props).getKey(row)
       fail("Should have errored out")
     } catch {
       case e: HoodieException => {
@@ -66,7 +75,7 @@ class DataSourceDefaultsTest extends AssertionsForJUnit {
 
     // partitionPath field is null
     try {
-      new SimpleKeyGenerator(getKeyConfig("field1", null)).getKey(baseRecord)
+      new SimpleKeyGenerator(getKeyConfig("field1", null)).getKey(row)
       fail("Should have errored out")
     } catch {
       case e: HoodieException => {
@@ -76,14 +85,14 @@ class DataSourceDefaultsTest extends AssertionsForJUnit {
 
     // nested field as record key and partition path
     val hk2 = new SimpleKeyGenerator(getKeyConfig("testNestedRecord.userId", "testNestedRecord.isAdmin"))
-      .getKey(baseRecord)
+      .getKey(row)
     assertEquals("UserId1@001", hk2.getRecordKey)
     assertEquals("false", hk2.getPartitionPath)
 
     // Nested record key not found
     try {
       new SimpleKeyGenerator(getKeyConfig("testNestedRecord.NotThere", "testNestedRecord.isAdmin"))
-        .getKey(baseRecord)
+        .getKey(row)
       fail("Should have errored out")
     } catch {
       case e: HoodieException => {
@@ -93,10 +102,9 @@ class DataSourceDefaultsTest extends AssertionsForJUnit {
   }
 
   @Test def testOverwriteWithLatestAvroPayload() = {
-    val overWritePayload1 = new OverwriteWithLatestAvroPayload(baseRecord, 1)
-    val laterRecord = SchemaTestUtil
-      .generateAvroRecordFromJson(schema, 2, "001", "f1")
-    val overWritePayload2 = new OverwriteWithLatestAvroPayload(laterRecord, 2)
+    val overWritePayload1 = new OverwriteWithLatestRowPayload(row, 1)
+    val laterRecord = convertToRow(new TestRecord("001", 2, "f1"))
+    val overWritePayload2 = new OverwriteWithLatestRowPayload(laterRecord, 2)
 
     // it will provide the record with greatest combine value
     val combinedPayload12 = overWritePayload1.preCombine(overWritePayload2)
