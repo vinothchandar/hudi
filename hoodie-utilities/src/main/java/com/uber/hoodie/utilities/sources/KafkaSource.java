@@ -22,7 +22,6 @@ import com.uber.hoodie.DataSourceUtils;
 import com.uber.hoodie.exception.HoodieNotSupportedException;
 import com.uber.hoodie.utilities.exception.HoodieDeltaStreamerException;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
-import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -35,7 +34,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 import kafka.common.TopicAndPartition;
-import kafka.serializer.DefaultDecoder;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.tuple.ImmutablePair;
@@ -45,7 +43,6 @@ import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.streaming.kafka.KafkaCluster;
-import org.apache.spark.streaming.kafka.KafkaUtils;
 import org.apache.spark.streaming.kafka.OffsetRange;
 import scala.Predef;
 import scala.collection.JavaConverters;
@@ -59,7 +56,7 @@ import scala.util.Either;
 /**
  * Source to read data from Kafka, incrementally
  */
-public class KafkaSource extends Source {
+public abstract class KafkaSource extends Source {
 
   private static volatile Logger log = LogManager.getLogger(KafkaSource.class);
 
@@ -149,19 +146,17 @@ public class KafkaSource extends Source {
    * Configs to be passed for this source. All standard Kafka consumer configs are also respected
    */
   static class Config {
-
     private static final String KAFKA_TOPIC_NAME = "hoodie.deltastreamer.source.kafka.topic";
     private static final String DEFAULT_AUTO_RESET_OFFSET = "largest";
   }
 
 
-  private HashMap<String, String> kafkaParams;
+  protected HashMap<String, String> kafkaParams;
 
-  private final String topicName;
+  protected final String topicName;
 
-  public KafkaSource(PropertiesConfiguration config, JavaSparkContext sparkContext,
-      SourceDataFormat dataFormat, SchemaProvider schemaProvider) {
-    super(config, sparkContext, dataFormat, schemaProvider);
+  public KafkaSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(config, sparkContext, schemaProvider);
 
     kafkaParams = new HashMap<>();
     Stream<String> keys = StreamSupport.stream(
@@ -171,6 +166,8 @@ public class KafkaSource extends Source {
     DataSourceUtils.checkRequiredProperties(config, Arrays.asList(Config.KAFKA_TOPIC_NAME));
     topicName = config.getString(Config.KAFKA_TOPIC_NAME);
   }
+
+  protected abstract JavaRDD<GenericRecord> toAvroRDD(OffsetRange[] offsetRanges, AvroConvertor avroConvertor);
 
   @Override
   public Pair<Optional<JavaRDD<GenericRecord>>, String> fetchNewData(
@@ -223,23 +220,9 @@ public class KafkaSource extends Source {
       log.info("About to read " + totalNewMsgs + " from Kafka for topic :" + topicName);
     }
 
-    // Perform the actual read from Kafka
-    JavaRDD<byte[]> kafkaRDD = KafkaUtils.createRDD(sparkContext, byte[].class, byte[].class,
-        DefaultDecoder.class, DefaultDecoder.class, kafkaParams, offsetRanges).values();
-
     // Produce a RDD[GenericRecord]
-    final AvroConvertor avroConvertor = new AvroConvertor(
-        schemaProvider.getSourceSchema().toString());
-    JavaRDD<GenericRecord> newDataRDD;
-    if (dataFormat == SourceDataFormat.AVRO) {
-      newDataRDD = kafkaRDD.map(bytes -> avroConvertor.fromAvroBinary(bytes));
-    } else if (dataFormat == SourceDataFormat.JSON) {
-      newDataRDD = kafkaRDD.map(
-          bytes -> avroConvertor.fromJson(new String(bytes, Charset.forName("utf-8"))));
-    } else {
-      throw new HoodieNotSupportedException("Unsupport data format :" + dataFormat);
-    }
-
+    final AvroConvertor avroConvertor = new AvroConvertor(schemaProvider.getSourceSchema().toString());
+    JavaRDD<GenericRecord> newDataRDD = toAvroRDD(offsetRanges, avroConvertor);
     return new ImmutablePair<>(Optional.of(newDataRDD), CheckpointUtils.offsetsToStr(toOffsets));
   }
 }

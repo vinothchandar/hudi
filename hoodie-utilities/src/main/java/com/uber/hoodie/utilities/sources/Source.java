@@ -36,16 +36,12 @@ public abstract class Source implements Serializable {
 
   protected transient JavaSparkContext sparkContext;
 
-  protected transient SourceDataFormat dataFormat;
-
   protected transient SchemaProvider schemaProvider;
 
 
-  protected Source(PropertiesConfiguration config, JavaSparkContext sparkContext,
-      SourceDataFormat dataFormat, SchemaProvider schemaProvider) {
+  protected Source(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
     this.config = config;
     this.sparkContext = sparkContext;
-    this.dataFormat = dataFormat;
     this.schemaProvider = schemaProvider;
   }
 

@@ -25,9 +25,9 @@ import java.io.IOException;
 import java.util.Arrays;
 import org.apache.avro.Schema;
 import org.apache.commons.configuration.PropertiesConfiguration;
-import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.spark.api.java.JavaSparkContext;
 
 /**
  * A simple schema provider, that reads off files on DFS
@@ -37,7 +37,7 @@ public class FilebasedSchemaProvider extends SchemaProvider {
   /**
    * Configs supported
    */
-  static class Config {
+  public static class Config {
 
     private static final String SOURCE_SCHEMA_FILE_PROP = "hoodie.deltastreamer.filebased"
         + ".schemaprovider.source.schema"
@@ -53,12 +53,12 @@ public class FilebasedSchemaProvider extends SchemaProvider {
 
   private final Schema targetSchema;
 
-  public FilebasedSchemaProvider(PropertiesConfiguration config) {
-    super(config);
-    this.fs = FSUtils.getFs(config.getBasePath(), new Configuration());
+  public FilebasedSchemaProvider(PropertiesConfiguration config, JavaSparkContext jssc) {
+    super(config, jssc);
 
     DataSourceUtils.checkRequiredProperties(config,
         Arrays.asList(Config.SOURCE_SCHEMA_FILE_PROP, Config.TARGET_SCHEMA_FILE_PROP));
+    this.fs = FSUtils.getFs(config.getString(Config.SOURCE_SCHEMA_FILE_PROP), jssc.hadoopConfiguration());
     try {
       this.sourceSchema = new Schema.Parser().parse(
           fs.open(new Path(config.getString(Config.SOURCE_SCHEMA_FILE_PROP))));

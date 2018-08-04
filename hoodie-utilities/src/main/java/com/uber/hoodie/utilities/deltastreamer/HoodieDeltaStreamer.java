@@ -46,7 +46,6 @@ import com.uber.hoodie.utilities.schema.FilebasedSchemaProvider;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.DFSSource;
 import com.uber.hoodie.utilities.sources.Source;
-import com.uber.hoodie.utilities.sources.SourceDataFormat;
 import java.io.IOException;
 import java.io.Serializable;
 import java.util.Arrays;
@@ -126,18 +125,22 @@ public class HoodieDeltaStreamer implements Serializable {
       this.commitTimelineOpt = Optional.empty();
     }
 
-    //TODO(vc) Should these be passed from outside?
     initSchemaProvider();
     initKeyGenerator();
     initSource();
+
+    // register the schemas, so that shuffle does not serialize the full schemas
+    List<Schema> schemas = Arrays.asList(schemaProvider.getSourceSchema(),
+        schemaProvider.getTargetSchema());
+    jssc.sc().getConf().registerAvroSchemas(JavaConversions.asScalaBuffer(schemas).toList());
   }
 
   private void initSource() throws IOException {
     // Create the source & schema providers
     PropertiesConfiguration sourceCfg = UtilHelpers.readConfig(fs, new Path(cfg.sourceConfigProps));
+
     log.info("Creating source " + cfg.sourceClassName + " with configs : " + sourceCfg.toString());
-    this.source = UtilHelpers.createSource(cfg.sourceClassName, sourceCfg, jssc, cfg.sourceFormat,
-        schemaProvider);
+    this.source = UtilHelpers.createSource(cfg.sourceClassName, sourceCfg, jssc, schemaProvider);
   }
 
   private void initSchemaProvider() throws IOException {
@@ -146,7 +149,7 @@ public class HoodieDeltaStreamer implements Serializable {
     log.info(
         "Creating schema provider " + cfg.schemaProviderClassName + " with configs : " + schemaCfg
             .toString());
-    this.schemaProvider = UtilHelpers.createSchemaProvider(cfg.schemaProviderClassName, schemaCfg);
+    this.schemaProvider = UtilHelpers.createSchemaProvider(cfg.schemaProviderClassName, schemaCfg, jssc);
   }
 
   private void initKeyGenerator() throws IOException {
@@ -173,10 +176,6 @@ public class HoodieDeltaStreamer implements Serializable {
     sparkConf.set("spark.hadoop.mapred.output.compression.type", "BLOCK");
 
     sparkConf = HoodieWriteClient.registerClasses(sparkConf);
-    // register the schemas, so that shuffle does not serialize the full schemas
-    List<Schema> schemas = Arrays.asList(schemaProvider.getSourceSchema(),
-        schemaProvider.getTargetSchema());
-    sparkConf.registerAvroSchemas(JavaConversions.asScalaBuffer(schemas).toList());
     return new JavaSparkContext(sparkConf);
   }
 
@@ -277,21 +276,14 @@ public class HoodieDeltaStreamer implements Serializable {
     }
   }
 
-  private class SourceFormatConvertor implements IStringConverter<SourceDataFormat> {
-
-    @Override
-    public SourceDataFormat convert(String value) throws ParameterException {
-      return SourceDataFormat.valueOf(value);
-    }
-  }
-
   public static class Config implements Serializable {
 
     /**
      * TARGET CONFIGS
      **/
     @Parameter(names = {
-        "--target-base-path"}, description = "base path for the target hoodie dataset", required = true)
+        "--target-base-path"}, description = "base path for the target hoodie dataset. (Will be created if did not "
+        + "exist first time around. If exists, expected to be a hoodie dataset)", required = true)
     public String targetBasePath;
 
     // TODO: How to obtain hive configs to register?
@@ -325,13 +317,6 @@ public class HoodieDeltaStreamer implements Serializable {
             + "For list of acceptable properties, refer "
             + "the source class", required = true)
     public String sourceConfigProps = null;
-
-    @Parameter(names = {"--source-format"}, description =
-        "Format of data in source, JSON (default), Avro. "
-            + "All source data is "
-            + "converted to Avro using the provided "
-            + "schema in any case", converter = SourceFormatConvertor.class)
-    public SourceDataFormat sourceFormat = SourceDataFormat.JSON;
 
     @Parameter(names = {"--source-ordering-field"}, description =
         "Field within source record to decide how"

@@ -22,8 +22,8 @@ import com.uber.hoodie.exception.HoodieIOException;
 import com.uber.hoodie.utilities.exception.HoodieDeltaStreamerException;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.Source;
-import com.uber.hoodie.utilities.sources.SourceDataFormat;
 import java.io.IOException;
+import java.io.InputStream;
 import org.apache.commons.configuration.ConfigurationException;
 import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.reflect.ConstructorUtils;
@@ -38,21 +38,21 @@ import org.apache.spark.api.java.JavaSparkContext;
 public class UtilHelpers {
 
   public static Source createSource(String sourceClass, PropertiesConfiguration cfg,
-      JavaSparkContext jssc, SourceDataFormat dataFormat, SchemaProvider schemaProvider)
+      JavaSparkContext jssc, SchemaProvider schemaProvider)
       throws IOException {
     try {
       return (Source) ConstructorUtils.invokeConstructor(Class.forName(sourceClass), (Object) cfg,
-          (Object) jssc, (Object) dataFormat, (Object) schemaProvider);
+          (Object) jssc, (Object) schemaProvider);
     } catch (Throwable e) {
       throw new IOException("Could not load source class " + sourceClass, e);
     }
   }
 
   public static SchemaProvider createSchemaProvider(String schemaProviderClass,
-      PropertiesConfiguration cfg) throws IOException {
+      PropertiesConfiguration cfg, JavaSparkContext jssc) throws IOException {
     try {
       return (SchemaProvider) ConstructorUtils.invokeConstructor(Class.forName(schemaProviderClass),
-          (Object) cfg);
+          (Object) cfg, (Object) jssc);
     } catch (Throwable e) {
       throw new IOException("Could not load schema provider class " + schemaProviderClass, e);
     }
@@ -64,10 +64,7 @@ public class UtilHelpers {
   public static PropertiesConfiguration readConfig(FileSystem fs, Path cfgPath) {
     try {
       FSDataInputStream in = fs.open(cfgPath);
-      PropertiesConfiguration config = new PropertiesConfiguration();
-      config.load(in);
-      in.close();
-      return config;
+      return readConfig(in);
     } catch (IOException e) {
       throw new HoodieIOException("Unable to read config file at :" + cfgPath, e);
     } catch (ConfigurationException e) {
@@ -76,4 +73,10 @@ public class UtilHelpers {
     }
   }
 
+  public static PropertiesConfiguration readConfig(InputStream in) throws IOException, ConfigurationException {
+    PropertiesConfiguration config = new PropertiesConfiguration();
+    config.load(in);
+    in.close();
+    return config;
+  }
 }
