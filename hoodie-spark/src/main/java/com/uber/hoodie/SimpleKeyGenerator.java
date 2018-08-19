@@ -19,9 +19,9 @@
 package com.uber.hoodie;
 
 import com.uber.hoodie.common.model.HoodieKey;
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.exception.HoodieException;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 
 /**
  * Simple key generator, which takes names of fields to be used for recordKey and partitionPath as
@@ -33,10 +33,10 @@ public class SimpleKeyGenerator extends KeyGenerator {
 
   protected final String partitionPathField;
 
-  public SimpleKeyGenerator(PropertiesConfiguration config) {
-    super(config);
-    this.recordKeyField = config.getString(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY());
-    this.partitionPathField = config
+  public SimpleKeyGenerator(TypedProperties props) {
+    super(props);
+    this.recordKeyField = props.getString(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY());
+    this.partitionPathField = props
         .getString(DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY());
   }
 

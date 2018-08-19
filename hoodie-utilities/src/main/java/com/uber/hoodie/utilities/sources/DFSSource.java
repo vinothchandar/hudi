@@ -20,6 +20,7 @@ package com.uber.hoodie.utilities.sources;
 
 import com.uber.hoodie.DataSourceUtils;
 import com.uber.hoodie.common.util.FSUtils;
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.exception.HoodieIOException;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import java.io.IOException;
@@ -29,7 +30,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.FileStatus;
@@ -56,23 +56,23 @@ public abstract class DFSSource extends Source {
 
   private final transient FileSystem fs;
 
-  public DFSSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
-    super(config, sparkContext, schemaProvider);
-    DataSourceUtils.checkRequiredProperties(config, Arrays.asList(Config.ROOT_INPUT_PATH_PROP));
-    this.fs = FSUtils.getFs(config.getString(Config.ROOT_INPUT_PATH_PROP), sparkContext.hadoopConfiguration());
+  public DFSSource(TypedProperties props, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(props, sparkContext, schemaProvider);
+    DataSourceUtils.checkRequiredProperties(props, Arrays.asList(Config.ROOT_INPUT_PATH_PROP));
+    this.fs = FSUtils.getFs(props.getString(Config.ROOT_INPUT_PATH_PROP), sparkContext.hadoopConfiguration());
   }
 
   protected abstract JavaRDD<GenericRecord> fromFiles(final AvroConvertor convertor, String pathStr);
 
   @Override
   public Pair<Optional<JavaRDD<GenericRecord>>, String> fetchNewData(
-      Optional<String> lastCheckpointStr, long maxInputBytes) {
+      Optional<String> lastCheckpointStr, long sourceLimit) {
 
     try {
       // obtain all eligible files under root folder.
       List<FileStatus> eligibleFiles = new ArrayList<>();
       RemoteIterator<LocatedFileStatus> fitr = fs.listFiles(
-          new Path(config.getString(Config.ROOT_INPUT_PATH_PROP)), true);
+          new Path(props.getString(Config.ROOT_INPUT_PATH_PROP)), true);
       while (fitr.hasNext()) {
         LocatedFileStatus fileStatus = fitr.next();
         if (fileStatus.isDirectory() || IGNORE_FILEPREFIX_LIST.stream().filter(
@@ -100,7 +100,7 @@ public abstract class DFSSource extends Source {
         maxModificationTime = f.getModificationTime();
         currentBytes += f.getLen();
         filteredFiles.add(f);
-        if (currentBytes >= maxInputBytes) {
+        if (currentBytes >= sourceLimit) {
           // we have enough data, we are done
           break;
         }

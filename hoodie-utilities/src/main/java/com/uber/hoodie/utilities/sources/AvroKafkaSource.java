@@ -18,11 +18,11 @@
 
 package com.uber.hoodie.utilities.sources;
 
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import io.confluent.kafka.serializers.KafkaAvroDecoder;
 import kafka.serializer.StringDecoder;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
@@ -33,8 +33,8 @@ import org.apache.spark.streaming.kafka.OffsetRange;
  */
 public class AvroKafkaSource extends KafkaSource {
 
-  public AvroKafkaSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
-    super(config, sparkContext, schemaProvider);
+  public AvroKafkaSource(TypedProperties props, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(props, sparkContext, schemaProvider);
   }
 
   @Override

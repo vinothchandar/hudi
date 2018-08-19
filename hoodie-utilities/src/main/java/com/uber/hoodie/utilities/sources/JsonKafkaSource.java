@@ -18,10 +18,10 @@
 
 package com.uber.hoodie.utilities.sources;
 
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import kafka.serializer.StringDecoder;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.streaming.kafka.KafkaUtils;
@@ -32,8 +32,8 @@ import org.apache.spark.streaming.kafka.OffsetRange;
  */
 public class JsonKafkaSource extends KafkaSource {
 
-  public JsonKafkaSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
-    super(config, sparkContext, schemaProvider);
+  public JsonKafkaSource(TypedProperties properties, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(properties, sparkContext, schemaProvider);
   }
 
   @Override

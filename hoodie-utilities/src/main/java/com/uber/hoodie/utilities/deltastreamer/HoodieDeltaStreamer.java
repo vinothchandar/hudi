@@ -35,6 +35,7 @@ import com.uber.hoodie.common.table.HoodieTableMetaClient;
 import com.uber.hoodie.common.table.HoodieTimeline;
 import com.uber.hoodie.common.table.timeline.HoodieInstant;
 import com.uber.hoodie.common.util.FSUtils;
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.config.HoodieCompactionConfig;
 import com.uber.hoodie.config.HoodieIndexConfig;
 import com.uber.hoodie.config.HoodieWriteConfig;
@@ -55,7 +56,6 @@ import java.util.Optional;
 import java.util.Properties;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -137,25 +137,20 @@ public class HoodieDeltaStreamer implements Serializable {
 
   private void initSource() throws IOException {
     // Create the source & schema providers
-    PropertiesConfiguration sourceCfg = UtilHelpers.readConfig(fs, new Path(cfg.sourceConfigProps));
-
+    TypedProperties sourceCfg = UtilHelpers.readConfig(fs, new Path(cfg.sourceConfigProps)).getConfig();
     log.info("Creating source " + cfg.sourceClassName + " with configs : " + sourceCfg.toString());
     this.source = UtilHelpers.createSource(cfg.sourceClassName, sourceCfg, jssc, schemaProvider);
   }
 
   private void initSchemaProvider() throws IOException {
-    PropertiesConfiguration schemaCfg = UtilHelpers.readConfig(fs,
-        new Path(cfg.schemaProviderConfigProps));
-    log.info(
-        "Creating schema provider " + cfg.schemaProviderClassName + " with configs : " + schemaCfg
-            .toString());
+    TypedProperties schemaCfg = UtilHelpers.readConfig(fs, new Path(cfg.schemaProviderConfigProps)).getConfig();
+    log.info("Creating schema provider " + cfg.schemaProviderClassName + " with configs : " + schemaCfg.toString());
     this.schemaProvider = UtilHelpers.createSchemaProvider(cfg.schemaProviderClassName, schemaCfg, jssc);
   }
 
   private void initKeyGenerator() throws IOException {
-    PropertiesConfiguration keygenCfg = UtilHelpers.readConfig(fs, new Path(cfg.keyGeneratorProps));
-    log.info("Creating key generator " + cfg.keyGeneratorClass + " with configs : " + keygenCfg
-        .toString());
+    TypedProperties keygenCfg = UtilHelpers.readConfig(fs, new Path(cfg.keyGeneratorProps)).getConfig();
+    log.info("Creating key generator " + cfg.keyGeneratorClass + " with configs : " + keygenCfg.toString());
     this.keyGenerator = DataSourceUtils.createKeyGenerator(cfg.keyGeneratorClass, keygenCfg);
   }
 
@@ -206,7 +201,7 @@ public class HoodieDeltaStreamer implements Serializable {
 
     // Pull the data from the source & prepare the write
     Pair<Optional<JavaRDD<GenericRecord>>, String> dataAndCheckpoint = source.fetchNewData(
-        resumeCheckpointStr, cfg.maxInputBytes);
+        resumeCheckpointStr, cfg.sourceLimit);
 
     if (!dataAndCheckpoint.getKey().isPresent()) {
       log.info("No new data, nothing to commit.. ");
@@ -291,9 +286,9 @@ public class HoodieDeltaStreamer implements Serializable {
         "--target-table"}, description = "name of the target table in Hive", required = true)
     public String targetTableName;
 
-    @Parameter(names = {"--hoodie-client-config"}, description =
+    @Parameter(names = {"--hoodie-client-props"}, description =
         "path to properties file on localfs or "
-            + "dfs, with hoodie client config. "
+            + "dfs, with hoodie client props. "
             + "Sane defaults"
             + "are used, but recommend use to "
             + "provide basic things like metrics "
@@ -311,7 +306,7 @@ public class HoodieDeltaStreamer implements Serializable {
             + "HiveIncrPullSource}")
     public String sourceClassName = DFSSource.class.getName();
 
-    @Parameter(names = {"--source-config"}, description =
+    @Parameter(names = {"--source-props"}, description =
         "path to properties file on localfs or dfs, with "
             + "source configs. "
             + "For list of acceptable properties, refer "
@@ -337,7 +332,7 @@ public class HoodieDeltaStreamer implements Serializable {
             + "notation, e.g: a.b.c)")
     public String keyGeneratorClass = SimpleKeyGenerator.class.getName();
 
-    @Parameter(names = {"--key-generator-config"}, description =
+    @Parameter(names = {"--key-generator-props"}, description =
         "Path to properties file on localfs or "
             + "dfs, with KeyGenerator configs. "
             + "For list of acceptable properites, "
@@ -361,7 +356,7 @@ public class HoodieDeltaStreamer implements Serializable {
             + "FilebasedSchemaProvider")
     public String schemaProviderClassName = FilebasedSchemaProvider.class.getName();
 
-    @Parameter(names = {"--schemaprovider-config"}, description =
+    @Parameter(names = {"--schemaprovider-props"}, description =
         "path to properties file on localfs or dfs, with schema "
             + "configs. For list of acceptable properties, refer "
             + "the schema provider class", required = true)
@@ -372,8 +367,9 @@ public class HoodieDeltaStreamer implements Serializable {
      * Other configs
      **/
     @Parameter(names = {
-        "--max-input-bytes"}, description = "Maximum number of bytes to read from source. Default: 1TB")
-    public long maxInputBytes = 1L * 1024 * 1024 * 1024 * 1024;
+        "--source-limit"}, description = "Maximum amount of data to read from source. Default: No limit "
+        + "For e.g: DFSSource => max bytes to read, KafkaSource => max events to read")
+    public long sourceLimit = Long.MAX_VALUE;
 
     @Parameter(names = {"--op"}, description =
         "Takes one of these values : UPSERT (default), INSERT (use when input "

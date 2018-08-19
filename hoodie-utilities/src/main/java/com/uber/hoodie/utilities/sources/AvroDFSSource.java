@@ -18,11 +18,11 @@
 
 package com.uber.hoodie.utilities.sources;
 
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.mapred.AvroKey;
 import org.apache.avro.mapreduce.AvroKeyInputFormat;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
@@ -33,8 +33,8 @@ import org.apache.spark.api.java.JavaSparkContext;
  */
 public class AvroDFSSource extends DFSSource {
 
-  public AvroDFSSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
-    super(config, sparkContext, schemaProvider);
+  public AvroDFSSource(TypedProperties props, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(props, sparkContext, schemaProvider);
   }
 
   @Override

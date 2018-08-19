@@ -18,21 +18,12 @@
 
 package com.uber.hoodie.utilities;
 
-import static com.uber.hoodie.utilities.TestHoodieDeltaStreamer.TestHelpers.getClientConfig;
-import static com.uber.hoodie.utilities.TestHoodieDeltaStreamer.TestHelpers.getKeyGeneratorConfig;
-import static com.uber.hoodie.utilities.TestHoodieDeltaStreamer.TestHelpers.getSchemaProviderConfig;
-import static com.uber.hoodie.utilities.TestHoodieDeltaStreamer.TestHelpers.getSourceConfig;
-import static com.uber.hoodie.utilities.TestHoodieDeltaStreamer.TestHelpers.savePropsToDFS;
-
 import com.uber.hoodie.common.HoodieTestDataGenerator;
 import com.uber.hoodie.common.minicluster.HdfsTestService;
 import com.uber.hoodie.common.model.HoodieRecord;
-import java.io.InputStream;
-import java.io.OutputStreamWriter;
+import com.uber.hoodie.common.util.TypedProperties;
 import java.util.List;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hdfs.DistributedFileSystem;
 import org.apache.hadoop.hdfs.MiniDFSCluster;
 import org.junit.After;
@@ -66,21 +57,13 @@ public class TestHoodieDeltaStreamer {
     upserts = dataGen.generateUpdates("002", 5000);
     inserts = dataGen.generateInserts("003", 5000);
 
+    /*
     hdfsTestService = new HdfsTestService();
     dfsCluster = hdfsTestService.start(true);
-    // Create a temp folder as the base path
     dfs = dfsCluster.getFileSystem();
     dfsBasePath = dfs.getWorkingDirectory().toString();
     dfs.mkdirs(new Path(dfsBasePath));
-
-    ClassLoader classLoader = TestHelpers.class.getClassLoader();
-    InputStream is = classLoader.getResourceAsStream("delta-streamer-config/schema-provider.properties");
-
-    // prepare configs on dfs.
-    savePropsToDFS(dfsBasePath + "/schema-provider.props", dfs, getSchemaProviderConfig());
-    savePropsToDFS(dfsBasePath + "/source-cfg.props", dfs, getSourceConfig());
-    savePropsToDFS(dfsBasePath + "/key-generator.props", dfs, getKeyGeneratorConfig());
-    savePropsToDFS(dfsBasePath + "/client-config.props", dfs, getClientConfig());
+     */
   }
 
   @AfterClass
@@ -89,9 +72,9 @@ public class TestHoodieDeltaStreamer {
     bulkInserts.clear();
     upserts.clear();
     inserts.clear();
-    if (hdfsTestService != null) {
+    /*if (hdfsTestService != null) {
       hdfsTestService.stop();
-    }
+    }*/
   }
 
   @Before
@@ -109,37 +92,30 @@ public class TestHoodieDeltaStreamer {
 
     private static ClassLoader classLoader = TestHelpers.class.getClassLoader();
 
-    static PropertiesConfiguration getSchemaProviderConfig() throws Exception {
+    static TypedProperties getSchemaProviderConfig() throws Exception {
       return UtilHelpers
           .readConfig(classLoader.getResourceAsStream("delta-streamer-config/schema-provider.properties"));
     }
 
-    static PropertiesConfiguration getSourceConfig() throws Exception {
+    static TypedProperties getSourceConfig() throws Exception {
       return UtilHelpers
           .readConfig(classLoader.getResourceAsStream("delta-streamer-config/source.properties"));
     }
 
-    static PropertiesConfiguration getKeyGeneratorConfig() throws Exception {
+    static TypedProperties getKeyGeneratorConfig() throws Exception {
       return UtilHelpers
           .readConfig(classLoader.getResourceAsStream("delta-streamer-config/key-generator.properties"));
     }
 
-    static PropertiesConfiguration getClientConfig() throws Exception {
+    static TypedProperties getClientConfig() throws Exception {
       return UtilHelpers
           .readConfig(classLoader.getResourceAsStream("delta-streamer-config/hoodie-client.properties"));
     }
 
-    static void savePropsToDFS(String filePath, FileSystem fs, PropertiesConfiguration cfg) throws Exception {
-      cfg.save(new OutputStreamWriter(fs.create(new Path(filePath), true)));
-    }
-
-    static void writeJsonFile(Path path, List<HoodieRecord> recordList) {
-      for (HoodieRecord rec : recordList) {
-        //out.println(((TestRawTripPayload) rec.getData()).getJsonData());
-      }
+    static void savePropsToDFS(String filePath, FileSystem fs, TypedProperties props) throws Exception {
+      // no-op
     }
   }
-
 
   @Test
   public void testAvroDFSSource() {

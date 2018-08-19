@@ -21,12 +21,12 @@ package com.uber.hoodie.utilities.schema;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.uber.hoodie.DataSourceUtils;
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.exception.HoodieIOException;
 import java.io.IOException;
 import java.net.URL;
 import java.util.Arrays;
 import org.apache.avro.Schema;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.spark.api.java.JavaSparkContext;
 
 /**
@@ -34,7 +34,7 @@ import org.apache.spark.api.java.JavaSparkContext;
  *
  * https://github.com/confluentinc/schema-registry
  */
-public class RegistrySchemaProvider extends SchemaProvider {
+public class SchemaRegistryProvider extends SchemaProvider {
 
   /**
    * Configs supported
@@ -46,7 +46,6 @@ public class RegistrySchemaProvider extends SchemaProvider {
 
   private final Schema schema;
 
-
   private String fetchSchemaFromRegistry(String registryUrl) throws IOException {
     URL registry = new URL(registryUrl);
     ObjectMapper mapper = new ObjectMapper();
@@ -54,11 +53,10 @@ public class RegistrySchemaProvider extends SchemaProvider {
     return node.get("schema").asText();
   }
 
-
-  public RegistrySchemaProvider(PropertiesConfiguration config, JavaSparkContext jssc) {
-    super(config, jssc);
-    DataSourceUtils.checkRequiredProperties(config, Arrays.asList(Config.SCHEMA_REGISTRY_URL_PROP));
-    String registryUrl = config.getString(Config.SCHEMA_REGISTRY_URL_PROP);
+  public SchemaRegistryProvider(TypedProperties props, JavaSparkContext jssc) {
+    super(props, jssc);
+    DataSourceUtils.checkRequiredProperties(props, Arrays.asList(Config.SCHEMA_REGISTRY_URL_PROP));
+    String registryUrl = props.getString(Config.SCHEMA_REGISTRY_URL_PROP);
     try {
       this.schema = new Schema.Parser().parse(fetchSchemaFromRegistry(registryUrl));
     } catch (IOException ioe) {
@@ -70,10 +68,4 @@ public class RegistrySchemaProvider extends SchemaProvider {
   public Schema getSourceSchema() {
     return schema;
   }
-
-  @Override
-  public Schema getTargetSchema() {
-    return schema;
-  }
-
 }

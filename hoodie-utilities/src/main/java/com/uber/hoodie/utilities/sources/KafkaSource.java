@@ -19,6 +19,7 @@
 package com.uber.hoodie.utilities.sources;
 
 import com.uber.hoodie.DataSourceUtils;
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.exception.HoodieNotSupportedException;
 import com.uber.hoodie.utilities.exception.HoodieDeltaStreamerException;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
@@ -26,16 +27,10 @@ import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Optional;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 import kafka.common.TopicAndPartition;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.LogManager;
@@ -43,6 +38,7 @@ import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.streaming.kafka.KafkaCluster;
+import org.apache.spark.streaming.kafka.KafkaCluster.LeaderOffset;
 import org.apache.spark.streaming.kafka.OffsetRange;
 import scala.Predef;
 import scala.collection.JavaConverters;
@@ -59,6 +55,8 @@ import scala.util.Either;
 public abstract class KafkaSource extends Source {
 
   private static volatile Logger log = LogManager.getLogger(KafkaSource.class);
+
+  private static long DEFAULT_MAX_EVENTS_TO_READ = 1000000; // 1M events max
 
 
   static class CheckpointUtils {
@@ -95,23 +93,52 @@ public abstract class KafkaSource extends Source {
       return sb.toString();
     }
 
+    /**
+     * Compute the offset ranges to read from Kafka, while handling newly added partitions, skews, event limits.
+     *
+     * @param fromOffsetMap offsets where we left off last time
+     * @param toOffsetMap offsets of where each partitions is currently at
+     * @param numEvents maximum number of events to read.
+     */
     public static OffsetRange[] computeOffsetRanges(
         HashMap<TopicAndPartition, KafkaCluster.LeaderOffset> fromOffsetMap,
-        HashMap<TopicAndPartition, KafkaCluster.LeaderOffset> toOffsetMap) {
-      Comparator<OffsetRange> byPartition = (OffsetRange o1, OffsetRange o2) -> {
-        return Integer.valueOf(o1.partition()).compareTo(Integer.valueOf(o2.partition()));
-      };
-      List<OffsetRange> offsetRanges = toOffsetMap.entrySet().stream().map(e -> {
-        TopicAndPartition tp = e.getKey();
-        long fromOffset = -1;
-        if (fromOffsetMap.containsKey(tp)) {
-          fromOffset = fromOffsetMap.get(tp).offset();
-        }
-        return OffsetRange.create(tp, fromOffset, e.getValue().offset());
-      }).sorted(byPartition).collect(Collectors.toList());
+        HashMap<TopicAndPartition, KafkaCluster.LeaderOffset> toOffsetMap,
+        long numEvents) {
 
-      OffsetRange[] ranges = new OffsetRange[offsetRanges.size()];
-      return offsetRanges.toArray(ranges);
+      Comparator<OffsetRange> byPartition = (OffsetRange o1, OffsetRange o2) ->
+          Integer.valueOf(o1.partition()).compareTo(Integer.valueOf(o2.partition()));
+
+      // Create initial offset ranges for each 'to' partition, with from = to offsets.
+      OffsetRange[] ranges = new OffsetRange[toOffsetMap.size()];
+      toOffsetMap.entrySet().stream().map(e -> {
+        TopicAndPartition tp = e.getKey();
+        long fromOffset = fromOffsetMap.getOrDefault(tp, new LeaderOffset("", -1, -1)).offset();
+        return OffsetRange.create(tp, fromOffset, fromOffset);
+      }).sorted(byPartition).collect(Collectors.toList()).toArray(ranges);
+
+      long allocedEvents = 0;
+      java.util.Set<Integer> exhaustedPartitions = new HashSet<>();
+      // keep going until we have events to allocate and partitions still not exhausted.
+      while (allocedEvents < numEvents && exhaustedPartitions.size() < toOffsetMap.size()) {
+        long remainingEvents = numEvents - allocedEvents;
+        long eventsPerPartition = (long) Math.ceil((1.0 * remainingEvents) / toOffsetMap.size());
+
+        // Allocate the remaining events to non-exhausted partitions, in round robin fashion
+        for (int i = 0; i < ranges.length; i++) {
+          OffsetRange range = ranges[i];
+          if (!exhaustedPartitions.contains(range.partition())) {
+            long toOffsetMax = toOffsetMap.get(range.partition()).offset();
+            long toOffset = Math.min(toOffsetMax, range.untilOffset() + eventsPerPartition);
+            if (toOffset == toOffsetMax) {
+              exhaustedPartitions.add(range.partition());
+            }
+            allocedEvents += toOffset - range.untilOffset();
+            ranges[i] = OffsetRange.create(range.topicAndPartition(), range.fromOffset(), toOffset);
+          }
+        }
+      }
+
+      return ranges;
     }
 
     public static long totalNewMessages(OffsetRange[] ranges) {
@@ -155,23 +182,22 @@ public abstract class KafkaSource extends Source {
 
   protected final String topicName;
 
-  public KafkaSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
-    super(config, sparkContext, schemaProvider);
+  public KafkaSource(TypedProperties props, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(props, sparkContext, schemaProvider);
 
     kafkaParams = new HashMap<>();
-    Stream<String> keys = StreamSupport.stream(
-        Spliterators.spliteratorUnknownSize(config.getKeys(), Spliterator.NONNULL), false);
-    keys.forEach(k -> kafkaParams.put(k, config.getString(k)));
-
-    DataSourceUtils.checkRequiredProperties(config, Arrays.asList(Config.KAFKA_TOPIC_NAME));
-    topicName = config.getString(Config.KAFKA_TOPIC_NAME);
+    for (Object prop : props.keySet()) {
+      kafkaParams.put(prop.toString(), props.getString(prop.toString()));
+    }
+    DataSourceUtils.checkRequiredProperties(props, Arrays.asList(Config.KAFKA_TOPIC_NAME));
+    topicName = props.getString(Config.KAFKA_TOPIC_NAME);
   }
 
   protected abstract JavaRDD<GenericRecord> toAvroRDD(OffsetRange[] offsetRanges, AvroConvertor avroConvertor);
 
   @Override
   public Pair<Optional<JavaRDD<GenericRecord>>, String> fetchNewData(
-      Optional<String> lastCheckpointStr, long maxInputBytes) {
+      Optional<String> lastCheckpointStr, long sourceLimit) {
 
     // Obtain current metadata for the topic
     KafkaCluster cluster = new KafkaCluster(ScalaHelpers.toScalaMap(kafkaParams));
@@ -189,7 +215,7 @@ public abstract class KafkaSource extends Source {
     if (lastCheckpointStr.isPresent()) {
       fromOffsets = CheckpointUtils.strToOffsets(lastCheckpointStr.get());
     } else {
-      String autoResetValue = config
+      String autoResetValue = props
           .getString("auto.offset.reset", Config.DEFAULT_AUTO_RESET_OFFSET);
       if (autoResetValue.equals("smallest")) {
         fromOffsets = new HashMap(ScalaHelpers.toJavaMap(
@@ -203,14 +229,13 @@ public abstract class KafkaSource extends Source {
       }
     }
 
-    // Always read until the latest offset
+    // Obtain the latest offsets.
     HashMap<TopicAndPartition, KafkaCluster.LeaderOffset> toOffsets = new HashMap(
         ScalaHelpers.toJavaMap(cluster.getLatestLeaderOffsets(topicPartitions).right().get()));
 
-    // Come up with final set of OffsetRanges to read (account for new partitions)
-    // TODO(vc): Respect maxInputBytes, by estimating number of messages to read each batch from
-    // partition size
-    OffsetRange[] offsetRanges = CheckpointUtils.computeOffsetRanges(fromOffsets, toOffsets);
+    // Come up with final set of OffsetRanges to read (account for new partitions, limit number of events)
+    long numEvents = Math.min(DEFAULT_MAX_EVENTS_TO_READ, sourceLimit);
+    OffsetRange[] offsetRanges = CheckpointUtils.computeOffsetRanges(fromOffsets, toOffsets, numEvents);
     long totalNewMsgs = CheckpointUtils.totalNewMessages(offsetRanges);
     if (totalNewMsgs <= 0) {
       return new ImmutablePair<>(Optional.empty(),

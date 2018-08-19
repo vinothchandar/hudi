@@ -205,7 +205,7 @@ public class HDFSParquetImporter implements Serializable {
         ret = dataImport(jsc);
       } while (ret != 0 && retry-- > 0);
     } catch (Throwable t) {
-      logger.error(t);
+      logger.error("Import failed at retry : " + retry, t);
     }
     return ret;
   }

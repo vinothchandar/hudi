@@ -18,16 +18,14 @@
 
 package com.uber.hoodie.utilities;
 
-import com.uber.hoodie.exception.HoodieIOException;
-import com.uber.hoodie.utilities.exception.HoodieDeltaStreamerException;
+import com.uber.hoodie.common.util.DFSPropertiesConfiguration;
+import com.uber.hoodie.common.util.TypedProperties;
+import com.uber.hoodie.exception.HoodieException;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import com.uber.hoodie.utilities.sources.Source;
 import java.io.IOException;
 import java.io.InputStream;
-import org.apache.commons.configuration.ConfigurationException;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.commons.lang3.reflect.ConstructorUtils;
-import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -37,7 +35,7 @@ import org.apache.spark.api.java.JavaSparkContext;
  */
 public class UtilHelpers {
 
-  public static Source createSource(String sourceClass, PropertiesConfiguration cfg,
+  public static Source createSource(String sourceClass, TypedProperties cfg,
       JavaSparkContext jssc, SchemaProvider schemaProvider)
       throws IOException {
     try {
@@ -49,7 +47,7 @@ public class UtilHelpers {
   }
 
   public static SchemaProvider createSchemaProvider(String schemaProviderClass,
-      PropertiesConfiguration cfg, JavaSparkContext jssc) throws IOException {
+      TypedProperties cfg, JavaSparkContext jssc) throws IOException {
     try {
       return (SchemaProvider) ConstructorUtils.invokeConstructor(Class.forName(schemaProviderClass),
           (Object) cfg, (Object) jssc);
@@ -59,24 +57,18 @@ public class UtilHelpers {
   }
 
   /**
-   * TODO: Support hierarchical config files (see CONFIGURATION-609 for sample)
    */
-  public static PropertiesConfiguration readConfig(FileSystem fs, Path cfgPath) {
+  public static DFSPropertiesConfiguration readConfig(FileSystem fs, Path cfgPath) {
     try {
-      FSDataInputStream in = fs.open(cfgPath);
-      return readConfig(in);
-    } catch (IOException e) {
-      throw new HoodieIOException("Unable to read config file at :" + cfgPath, e);
-    } catch (ConfigurationException e) {
-      throw new HoodieDeltaStreamerException("Invalid configs found in config file at :" + cfgPath,
-          e);
+      return new DFSPropertiesConfiguration(fs, cfgPath);
+    } catch (Exception e) {
+      throw new HoodieException("Unable to read props file at :" + cfgPath, e);
     }
   }
 
-  public static PropertiesConfiguration readConfig(InputStream in) throws IOException, ConfigurationException {
-    PropertiesConfiguration config = new PropertiesConfiguration();
-    config.load(in);
-    in.close();
-    return config;
+  public static TypedProperties readConfig(InputStream in) throws IOException {
+    TypedProperties defaults = new TypedProperties();
+    defaults.load(in);
+    return defaults;
   }
 }

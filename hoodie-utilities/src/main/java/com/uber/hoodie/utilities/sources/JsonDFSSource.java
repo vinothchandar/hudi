@@ -18,9 +18,9 @@
 
 package com.uber.hoodie.utilities.sources;
 
+import com.uber.hoodie.common.util.TypedProperties;
 import com.uber.hoodie.utilities.schema.SchemaProvider;
 import org.apache.avro.generic.GenericRecord;
-import org.apache.commons.configuration.PropertiesConfiguration;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 
@@ -29,8 +29,8 @@ import org.apache.spark.api.java.JavaSparkContext;
  */
 public class JsonDFSSource extends DFSSource {
 
-  public JsonDFSSource(PropertiesConfiguration config, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
-    super(config, sparkContext, schemaProvider);
+  public JsonDFSSource(TypedProperties props, JavaSparkContext sparkContext, SchemaProvider schemaProvider) {
+    super(props, sparkContext, schemaProvider);
   }
 
   @Override
