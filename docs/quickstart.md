@@ -14,11 +14,11 @@ Check out code and pull it into Intellij as a normal maven project.
 
 Normally build the maven project, from command line
 ```
-$ mvn clean install -DskipTests
+$ mvn clean install -DskipTests -skipITs
 
 To work with older version of Hive (pre Hive-1.2.1), use
 
-$ mvn clean install -DskipTests -Dhive11
+$ mvn clean install -DskipTests -DskipITs -Dhive11
 
 ```
 
@@ -293,6 +293,31 @@ hive>
 {% include note.html content="This is only supported for Read-optimized tables for now." %}
 
 
+## Testing Hoodie in Local Docker environment
 
+You can bring up a hadoop docker environment containing Hadoop, Hive and Spark services with support for hoodie.
+```
+$ mvn pre-integration-test -DskipTests
+```
+The above command builds docker images for all the services with 
+current hoodie source installed at /var/hoodie/ws and also brings up the services using a compose file. We 
+currently use Hadoop (v2.8.4), Hive (v2.3.3) and Spark (v2.3.1) in docker images. 
+
+To bring down the containers
+```
+$ cd hoodie-integ-test
+$ mvn docker-compose:down
+```
+
+If you want to bring up the docker containers, use
+```
+$ cd hoodie-integ-test
+$  mvn docker-compose:up -DdetachedMode=true
+```
+
+Hoodie is a library that is operated in a broader data analytics/ingestion environment 
+involving Hadoop, Hive and Spark. Interoperability with all these systems is a key objective for us. We are
+actively adding integration-tests under __hoodie-integ-test/src/test/java__ that makes use of this 
+docker environment (See __hoodie-integ-test/src/test/java/com/uber/hoodie/integ/ITTestHoodieSanity.java__ )
 
 
