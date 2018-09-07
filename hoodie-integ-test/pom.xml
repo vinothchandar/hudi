@@ -20,7 +20,7 @@
   <parent>
     <artifactId>hoodie</artifactId>
     <groupId>com.uber.hoodie</groupId>
-    <version>0.4.3-SNAPSHOT</version>
+    <version>0.4.4-SNAPSHOT</version>
     <relativePath>../pom.xml</relativePath>
   </parent>
   <artifactId>hoodie-integ-test</artifactId>
@@ -134,6 +134,7 @@
     <dockerCompose.file>${project.basedir}/../docker/hoodie/hadoop/docker-compose_hadoop284_hive233_spark231.yml</dockerCompose.file>
     <skipITs>false</skipITs>
     <docker.compose.skip>${skipITs}</docker.compose.skip>
+    <checkstyle.skip>true</checkstyle.skip>
   </properties>
 
   <build>
