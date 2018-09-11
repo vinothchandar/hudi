@@ -65,7 +65,7 @@ public class HoodieJavaApp {
   private String hivePass = "hive";
 
   @Parameter(names = {"--hive-url", "-hl"}, description = "hive JDBC URL")
-  private String hiveJdbcUrl = "jdbc:hive://localhost:10000";
+  private String hiveJdbcUrl = "jdbc:hive2://localhost:10000";
 
   @Parameter(names = {"--help", "-h"}, help = true)
   public Boolean help = false;

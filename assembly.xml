@@ -1,0 +1,18 @@
+<assembly>
+  <id>bundle</id>
+  <formats>
+    <format>tar.gz</format>
+  </formats>
+  <includeBaseDirectory>false</includeBaseDirectory>
+  <fileSets>
+    <fileSet>
+      <directory>../../../../</directory>
+      <outputDirectory>ws</outputDirectory>
+      <excludes>
+        <exclude>docker/**</exclude>
+        <exclude>ws/**</exclude>
+        <exclude>.git/**</exclude>
+      </excludes>
+    </fileSet>
+  </fileSets>
+</assembly>
