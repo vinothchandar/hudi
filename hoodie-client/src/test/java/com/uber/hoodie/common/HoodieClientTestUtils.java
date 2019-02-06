@@ -34,13 +34,18 @@ import com.uber.hoodie.config.HoodieStorageConfig;
 import com.uber.hoodie.exception.HoodieException;
 import com.uber.hoodie.io.storage.HoodieParquetConfig;
 import com.uber.hoodie.io.storage.HoodieParquetWriter;
-
 import java.io.File;
 import java.io.IOException;
 import java.io.RandomAccessFile;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
-
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.hadoop.fs.FileSystem;
@@ -100,7 +105,7 @@ public class HoodieClientTestUtils {
       throws Exception {
     String parentPath = String.format("%s/%s", basePath, partitionPath);
     new File(parentPath).mkdirs();
-    String path = String.format("%s/%s", parentPath, FSUtils.makeDataFileName(commitTime, 0, fileId));
+    String path = String.format("%s/%s", parentPath, FSUtils.makeDataFileName(commitTime, "1-0-1", fileId));
     new File(path).createNewFile();
     new RandomAccessFile(path, "rw").setLength(length);
   }
@@ -231,7 +236,7 @@ public class HoodieClientTestUtils {
     Thread.sleep(1000);
     String commitTime = HoodieTestUtils.makeNewCommitTime();
     String fileId = UUID.randomUUID().toString();
-    String filename = FSUtils.makeDataFileName(commitTime, 1, fileId);
+    String filename = FSUtils.makeDataFileName(commitTime, "1-0-1", fileId);
     HoodieTestUtils.createCommitFiles(basePath, commitTime);
     return HoodieClientTestUtils
         .writeParquetFile(basePath, partitionPath, filename, records, schema, filter, createCommitTime);

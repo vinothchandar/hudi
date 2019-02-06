@@ -64,7 +64,7 @@ public class TestConsistencyCheck {
     JavaSparkContext jscSpy = spy(jsc);
 
     ConsistencyCheck failing = new ConsistencyCheck(basePath,
-        Arrays.asList("partition/path/f1_0_000.parquet", "partition/path/f2_0_000.parquet"),
+        Arrays.asList("partition/path/f1_1-0-1_000.parquet", "partition/path/f2_1-0-1_000.parquet"),
         jscSpy, 2);
     long startMs = System.currentTimeMillis();
     assertEquals(1, failing.check(5, 10).size());
@@ -79,12 +79,12 @@ public class TestConsistencyCheck {
     HoodieClientTestUtils.fakeDataFile(basePath, "partition/path", "000", "f3");
 
     ConsistencyCheck passing = new ConsistencyCheck(basePath,
-        Arrays.asList("partition/path/f1_0_000.parquet", "partition/path/f2_0_000.parquet"),
+        Arrays.asList("partition/path/f1_1-0-1_000.parquet", "partition/path/f2_1-0-1_000.parquet"),
         jsc, 2);
     assertEquals(0, passing.check(1, 1000).size());
 
     ConsistencyCheck failing = new ConsistencyCheck(basePath,
-        Arrays.asList("partition/path/f1_0_000.parquet", "partition/path/f4_0_000.parquet"),
+        Arrays.asList("partition/path/f1_1-0-1_000.parquet", "partition/path/f4_1-0-1_000.parquet"),
         jsc, 2);
     assertEquals(1, failing.check(1, 1000).size());
   }

@@ -44,7 +44,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
@@ -62,7 +61,6 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieIOH
   private static Logger logger = LogManager.getLogger(HoodieAppendHandle.class);
   // This acts as the sequenceID for records written
   private static AtomicLong recordIndex = new AtomicLong(1);
-  private final String fileId;
   // Buffer for holding records in memory before they are flushed to disk
   private List<IndexedRecord> recordList = new ArrayList<>();
   // Buffer for holding records (to be deleted) in memory before they are flushed to disk
@@ -94,16 +92,16 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieIOH
   private long insertRecordsWritten = 0;
 
   public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable,
-      String fileId, Iterator<HoodieRecord<T>> recordItr) {
-    super(config, commitTime, hoodieTable);
+      String fileId, String writeToken, Iterator<HoodieRecord<T>> recordItr) {
+    super(config, commitTime, fileId, writeToken, hoodieTable);
     writeStatus.setStat(new HoodieDeltaWriteStat());
-    this.fileId = fileId;
     this.fileSystemView = hoodieTable.getRTFileSystemView();
     this.recordItr = recordItr;
   }
 
-  public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable) {
-    this(config, commitTime, hoodieTable, UUID.randomUUID().toString(), null);
+  public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable, String fileId,
+      String writeToken) {
+    this(config, commitTime, hoodieTable, fileId, writeToken, null);
   }
 
   private void init(HoodieRecord record) {
@@ -152,6 +150,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieIOH
       Optional<IndexedRecord> avroRecord = hoodieRecord.getData().getInsertValue(schema);
 
       if (avroRecord.isPresent()) {
+        //FIX(vc) need to remove this..
         String seqId = HoodieRecord.generateSequenceId(commitTime, TaskContext.getPartitionId(),
             recordIndex.getAndIncrement());
         HoodieAvroUtils

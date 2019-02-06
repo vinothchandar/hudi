@@ -36,24 +36,22 @@ public class TestFSUtils {
   @Test
   public void testMakeDataFileName() {
     String commitTime = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-    int taskPartitionId = 2;
+    String writeToken = "2-0-1";
     String fileName = UUID.randomUUID().toString();
-    assertTrue(FSUtils.makeDataFileName(commitTime, taskPartitionId, fileName)
-        .equals(fileName + "_" + taskPartitionId + "_" + commitTime + ".parquet"));
+    assertTrue(FSUtils.makeDataFileName(commitTime, writeToken, fileName)
+        .equals(fileName + "_" + writeToken + "_" + commitTime + ".parquet"));
   }
 
   @Test
   public void testMakeTempDataFileName() {
     String commitTime = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
     String partitionPath = "2017/12/31";
-    int taskPartitionId = Integer.MAX_VALUE;
-    int stageId = Integer.MAX_VALUE;
-    long taskAttemptId = Long.MAX_VALUE;
+    String writeToken = "1-0-1";
     String fileName = UUID.randomUUID().toString();
     assertTrue(
-        FSUtils.makeTempDataFileName(partitionPath, commitTime, taskPartitionId, fileName, stageId, taskAttemptId)
-            .equals(partitionPath.replace("/", "-") + "_" + fileName + "_" + taskPartitionId + "_" + commitTime + "_"
-                + stageId + "_" + taskAttemptId + ".parquet"));
+        FSUtils.makeTempDataFileName(partitionPath, commitTime, fileName, writeToken)
+            .equals(partitionPath.replace("/", "-") + "_" + fileName
+                + "_" + writeToken + "_" + commitTime + ".parquet"));
   }
 
   @Test
@@ -67,18 +65,16 @@ public class TestFSUtils {
   @Test
   public void testGetCommitTime() {
     String commitTime = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-    int taskPartitionId = 2;
     String fileName = UUID.randomUUID().toString();
-    String fullFileName = FSUtils.makeDataFileName(commitTime, taskPartitionId, fileName);
+    String fullFileName = FSUtils.makeDataFileName(commitTime, "2", fileName);
     assertTrue(FSUtils.getCommitTime(fullFileName).equals(commitTime));
   }
 
   @Test
   public void testGetFileNameWithoutMeta() {
     String commitTime = new SimpleDateFormat("yyyyMMddHHmmss").format(new Date());
-    int taskPartitionId = 2;
     String fileName = UUID.randomUUID().toString();
-    String fullFileName = FSUtils.makeDataFileName(commitTime, taskPartitionId, fileName);
+    String fullFileName = FSUtils.makeDataFileName(commitTime, "2", fileName);
     assertTrue(FSUtils.getFileId(fullFileName).equals(fileName));
   }
 

@@ -66,8 +66,8 @@ public class HoodieMergeHandle<T extends HoodieRecordPayload> extends HoodieIOHa
   private long insertRecordsWritten = 0;
 
   public HoodieMergeHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable,
-      Iterator<HoodieRecord<T>> recordItr, String fileId) {
-    super(config, commitTime, hoodieTable);
+      Iterator<HoodieRecord<T>> recordItr, String fileId, String writeToken) {
+    super(config, commitTime, fileId, writeToken, hoodieTable);
     this.fileSystemView = hoodieTable.getROFileSystemView();
     String partitionPath = init(fileId, recordItr);
     init(fileId, partitionPath,
@@ -76,8 +76,9 @@ public class HoodieMergeHandle<T extends HoodieRecordPayload> extends HoodieIOHa
   }
 
   public HoodieMergeHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable,
-      Map<String, HoodieRecord<T>> keyToNewRecords, String fileId, Optional<HoodieDataFile> dataFileToBeMerged) {
-    super(config, commitTime, hoodieTable);
+      Map<String, HoodieRecord<T>> keyToNewRecords, String fileId, String writeToken,
+      Optional<HoodieDataFile> dataFileToBeMerged) {
+    super(config, commitTime, fileId, writeToken, hoodieTable);
     this.fileSystemView = hoodieTable.getROFileSystemView();
     this.keyToNewRecords = keyToNewRecords;
     init(fileId, keyToNewRecords.get(keyToNewRecords.keySet().stream().findFirst().get())
@@ -91,7 +92,6 @@ public class HoodieMergeHandle<T extends HoodieRecordPayload> extends HoodieIOHa
     this.writtenRecordKeys = new HashSet<>();
     writeStatus.setStat(new HoodieWriteStat());
     try {
-      //TODO: dataFileToBeMerged must be optional. Will be fixed by Nishith's changes to support insert to log-files
       String latestValidFilePath = dataFileToBeMerged.get().getFileName();
       writeStatus.getStat().setPrevCommit(FSUtils.getCommitTime(latestValidFilePath));
 
@@ -102,11 +102,10 @@ public class HoodieMergeHandle<T extends HoodieRecordPayload> extends HoodieIOHa
       oldFilePath = new Path(
           config.getBasePath() + "/" + partitionPath + "/" + latestValidFilePath);
       String relativePath = new Path((partitionPath.isEmpty() ? "" : partitionPath + "/") + FSUtils
-          .makeDataFileName(commitTime, TaskContext.getPartitionId(), fileId)).toString();
+          .makeDataFileName(commitTime, writeToken, fileId)).toString();
       newFilePath = new Path(config.getBasePath(), relativePath);
       if (config.shouldUseTempFolderForCopyOnWriteForMerge()) {
-        this.tempPath = makeTempPath(partitionPath, TaskContext.getPartitionId(), fileId,
-            TaskContext.get().stageId(), TaskContext.get().taskAttemptId());
+        this.tempPath = makeTempPath(partitionPath);
       }
 
       // handle cases of partial failures, for update task

@@ -131,7 +131,7 @@ public class HoodieRealtimeRecordReaderTest {
     //create a split with baseFile (parquet file written earlier) and new log file(s)
     String logFilePath = writer.getLogFile().getPath().toString();
     HoodieRealtimeFileSplit split = new HoodieRealtimeFileSplit(
-        new FileSplit(new Path(partitionDir + "/fileid0_1_" + commitTime + ".parquet"), 0, 1,
+        new FileSplit(new Path(partitionDir + "/fileid0_" + "1-0-1" + "_" + commitTime + ".parquet"), 0, 1,
             jobConf), basePath.getRoot().getPath(), Arrays.asList(logFilePath), newCommitTime);
 
     //create a RecordReader to be used by HoodieRealtimeRecordReader
@@ -141,7 +141,7 @@ public class HoodieRealtimeRecordReaderTest {
             jobConf, null);
     JobConf jobConf = new JobConf();
     List<Schema.Field> fields = schema.getFields();
-    String names = fields.stream().map(f -> f.name().toString()).collect(Collectors.joining(","));
+    String names = fields.stream().map(f -> f.name()).collect(Collectors.joining(","));
     String postions = fields.stream().map(f -> String.valueOf(f.pos()))
         .collect(Collectors.joining(","));
     jobConf.set(ColumnProjectionUtils.READ_COLUMN_NAMES_CONF_STR, names);
@@ -191,7 +191,7 @@ public class HoodieRealtimeRecordReaderTest {
     //create a split with baseFile (parquet file written earlier) and new log file(s)
     String logFilePath = writer.getLogFile().getPath().toString();
     HoodieRealtimeFileSplit split = new HoodieRealtimeFileSplit(
-        new FileSplit(new Path(partitionDir + "/fileid0_1_" + commitTime + ".parquet"), 0, 1,
+        new FileSplit(new Path(partitionDir + "/fileid0_" + "1-0-1" + "_" + commitTime + ".parquet"), 0, 1,
             jobConf), basePath.getRoot().getPath(), Arrays.asList(logFilePath), newCommitTime);
 
     //create a RecordReader to be used by HoodieRealtimeRecordReader
@@ -201,7 +201,7 @@ public class HoodieRealtimeRecordReaderTest {
             jobConf, null);
     JobConf jobConf = new JobConf();
     List<Schema.Field> fields = schema.getFields();
-    String names = fields.stream().map(f -> f.name().toString()).collect(Collectors.joining(","));
+    String names = fields.stream().map(f -> f.name()).collect(Collectors.joining(","));
     String postions = fields.stream().map(f -> String.valueOf(f.pos()))
         .collect(Collectors.joining(","));
     jobConf.set(ColumnProjectionUtils.READ_COLUMN_NAMES_CONF_STR, names);
@@ -274,7 +274,7 @@ public class HoodieRealtimeRecordReaderTest {
     //create a split with baseFile (parquet file written earlier) and new log file(s)
     String logFilePath = writer.getLogFile().getPath().toString();
     HoodieRealtimeFileSplit split = new HoodieRealtimeFileSplit(
-        new FileSplit(new Path(partitionDir + "/fileid0_1_" + commitTime + ".parquet"), 0, 1,
+        new FileSplit(new Path(partitionDir + "/fileid0_" + "1-0-1" + "_" + commitTime + ".parquet"), 0, 1,
             jobConf), basePath.getRoot().getPath(), Arrays.asList(logFilePath), newCommitTime);
 
     //create a RecordReader to be used by HoodieRealtimeRecordReader

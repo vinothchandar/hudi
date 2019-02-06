@@ -51,16 +51,14 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload> extends HoodieIOH
   private Iterator<HoodieRecord<T>> recordIterator;
 
   public HoodieCreateHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable,
-      String partitionPath, String fileId) {
-    super(config, commitTime, hoodieTable);
+      String partitionPath, String fileId, String writeToken) {
+    super(config, commitTime, fileId, writeToken, hoodieTable);
     writeStatus.setFileId(fileId);
     writeStatus.setPartitionPath(partitionPath);
 
-    final int sparkPartitionId = TaskContext.getPartitionId();
-    this.path = makeNewPath(partitionPath, sparkPartitionId, writeStatus.getFileId());
+    this.path = makeNewPath(partitionPath);
     if (config.shouldUseTempFolderForCopyOnWriteForCreate()) {
-      this.tempPath = makeTempPath(partitionPath, sparkPartitionId, writeStatus.getFileId(),
-          TaskContext.get().stageId(), TaskContext.get().taskAttemptId());
+      this.tempPath = makeTempPath(partitionPath);
     }
 
     try {
@@ -77,8 +75,8 @@ public class HoodieCreateHandle<T extends HoodieRecordPayload> extends HoodieIOH
   }
 
   public HoodieCreateHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable,
-      String partitionPath, String fileId, Iterator<HoodieRecord<T>> recordIterator) {
-    this(config, commitTime, hoodieTable, partitionPath, fileId);
+      String partitionPath, String fileId, String writeToken, Iterator<HoodieRecord<T>> recordIterator) {
+    this(config, commitTime, hoodieTable, partitionPath, fileId, writeToken);
     this.recordIterator = recordIterator;
   }
 

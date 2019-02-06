@@ -35,18 +35,15 @@ public class TestHoodieWriteStat {
     String basePathString = "/data/tables/some-hoodie-table";
     String partitionPathString = "2017/12/31";
     String fileName = UUID.randomUUID().toString();
-    int taskPartitionId = Integer.MAX_VALUE;
-    int stageId = Integer.MAX_VALUE;
-    long taskAttemptId = Long.MAX_VALUE;
+    String writeToken = "1-0-1";
 
     Path basePath = new Path(basePathString);
     Path partitionPath = new Path(basePath, partitionPathString);
     Path tempPath = new Path(basePath, HoodieTableMetaClient.TEMPFOLDER_NAME);
 
-    Path finalizeFilePath = new Path(partitionPath, FSUtils.makeDataFileName(commitTime, taskPartitionId, fileName));
-    Path tempFilePath = new Path(tempPath, FSUtils
-        .makeTempDataFileName(partitionPathString, commitTime, taskPartitionId,
-            fileName, stageId, taskAttemptId));
+    Path finalizeFilePath = new Path(partitionPath, FSUtils.makeDataFileName(commitTime, writeToken, fileName));
+    Path tempFilePath = new Path(tempPath,
+        FSUtils.makeTempDataFileName(partitionPathString, commitTime, fileName, writeToken));
 
     HoodieWriteStat writeStat = new HoodieWriteStat();
     writeStat.setPaths(basePath, finalizeFilePath, tempFilePath);

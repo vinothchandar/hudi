@@ -72,6 +72,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -339,9 +340,10 @@ public class HoodieWriteClient<T extends HoodieRecordPayload> implements Seriali
       String commitTime, HoodieTable<T> table,
       Option<UserDefinedBulkInsertPartitioner> bulkInsertPartitioner) {
     final JavaRDD<HoodieRecord<T>> repartitionedRecords;
+    final int parallelism = config.getBulkInsertShuffleParallelism();
     if (bulkInsertPartitioner.isDefined()) {
       repartitionedRecords = bulkInsertPartitioner.get()
-          .repartitionRecords(dedupedRecords, config.getBulkInsertShuffleParallelism());
+          .repartitionRecords(dedupedRecords, parallelism);
     } else {
       // Now, sort the records and line them up nicely for loading.
       repartitionedRecords = dedupedRecords.sortBy(record -> {
@@ -349,10 +351,15 @@ public class HoodieWriteClient<T extends HoodieRecordPayload> implements Seriali
         // the records split evenly across RDD partitions, such that small partitions fit
         // into 1 RDD partition, while big ones spread evenly across multiple RDD partitions
         return String.format("%s+%s", record.getPartitionPath(), record.getRecordKey());
-      }, true, config.getBulkInsertShuffleParallelism());
+      }, true, parallelism);
     }
+    //generate new file ID prefixes for each output partition
+    final List<String> fileIDPrefixes = IntStream.range(0, parallelism)
+        .mapToObj(i -> FSUtils.createNewFileIdPfx())
+        .collect(Collectors.toList());
+
     JavaRDD<WriteStatus> writeStatusRDD = repartitionedRecords
-        .mapPartitionsWithIndex(new BulkInsertMapFunction<T>(commitTime, config, table), true)
+        .mapPartitionsWithIndex(new BulkInsertMapFunction<T>(commitTime, config, table, fileIDPrefixes), true)
         .flatMap(writeStatuses -> writeStatuses.iterator());
 
     return updateIndexAndCommitIfNeeded(writeStatusRDD, table, commitTime);

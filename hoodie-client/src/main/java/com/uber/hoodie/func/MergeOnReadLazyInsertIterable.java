@@ -21,6 +21,7 @@ import com.uber.hoodie.common.model.HoodieRecord;
 import com.uber.hoodie.common.model.HoodieRecordPayload;
 import com.uber.hoodie.config.HoodieWriteConfig;
 import com.uber.hoodie.io.HoodieAppendHandle;
+import com.uber.hoodie.io.HoodieIOHandle;
 import com.uber.hoodie.table.HoodieTable;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -34,8 +35,8 @@ public class MergeOnReadLazyInsertIterable<T extends HoodieRecordPayload> extend
     CopyOnWriteLazyInsertIterable<T> {
 
   public MergeOnReadLazyInsertIterable(Iterator<HoodieRecord<T>> sortedRecordItr, HoodieWriteConfig config,
-      String commitTime, HoodieTable<T> hoodieTable) {
-    super(sortedRecordItr, config, commitTime, hoodieTable);
+      String commitTime, HoodieTable<T> hoodieTable, String idPfx) {
+    super(sortedRecordItr, config, commitTime, hoodieTable, idPfx);
   }
 
   @Override
@@ -51,7 +52,8 @@ public class MergeOnReadLazyInsertIterable<T extends HoodieRecordPayload> extend
       List<WriteStatus> statuses = new ArrayList<>();
       // lazily initialize the handle, for the first time
       if (handle == null) {
-        handle = new HoodieAppendHandle(hoodieConfig, commitTime, hoodieTable);
+        handle = new HoodieAppendHandle(hoodieConfig, commitTime, hoodieTable, getNextFileId(idPfx),
+            HoodieIOHandle.makeSparkWriteToken());
       }
       if (handle.canWrite(insertPayload)) {
         // write the payload, if the handle has capacity
@@ -61,7 +63,8 @@ public class MergeOnReadLazyInsertIterable<T extends HoodieRecordPayload> extend
         handle.close();
         statuses.add(handle.getWriteStatus());
         // Need to handle the rejected payload & open new handle
-        handle = new HoodieAppendHandle(hoodieConfig, commitTime, hoodieTable);
+        handle = new HoodieAppendHandle(hoodieConfig, commitTime, hoodieTable, getNextFileId(idPfx),
+            HoodieIOHandle.makeSparkWriteToken());
         handle.write(insertPayload, payload.insertValue, payload.exception); // we should be able to write 1 payload.
       }
     }

@@ -16,7 +16,7 @@
 
 package com.uber.hoodie.hive;
 
-import static com.uber.hoodie.common.model.HoodieTestUtils.DEFAULT_TASK_PARTITIONID;
+import static com.uber.hoodie.common.model.HoodieTestUtils.DEFAULT_WRITE_TOKEN;
 import static org.junit.Assert.fail;
 
 import com.google.common.collect.Lists;
@@ -260,7 +260,7 @@ public class TestUtil {
       // Create 5 files
       String fileId = UUID.randomUUID().toString();
       Path filePath = new Path(partPath.toString() + "/" + FSUtils.makeDataFileName(commitTime,
-          DEFAULT_TASK_PARTITIONID, fileId));
+          DEFAULT_WRITE_TOKEN, fileId));
       generateParquetData(filePath, isParquetSchemaSimple);
       HoodieWriteStat writeStat = new HoodieWriteStat();
       writeStat.setFileId(fileId);

@@ -37,11 +37,14 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.spark.TaskContext;
 
 public abstract class HoodieIOHandle<T extends HoodieRecordPayload> {
 
   private static Logger logger = LogManager.getLogger(HoodieIOHandle.class);
   protected final String commitTime;
+  protected final String fileId;
+  protected final String writeToken;
   protected final HoodieWriteConfig config;
   protected final FileSystem fs;
   protected final HoodieTable<T> hoodieTable;
@@ -50,8 +53,11 @@ public abstract class HoodieIOHandle<T extends HoodieRecordPayload> {
   protected HoodieTimer timer;
   protected final WriteStatus writeStatus;
 
-  public HoodieIOHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable) {
+  public HoodieIOHandle(HoodieWriteConfig config, String commitTime, String fileId, String writeToken,
+      HoodieTable<T> hoodieTable) {
     this.commitTime = commitTime;
+    this.fileId = fileId;
+    this.writeToken = writeToken;
     this.config = config;
     this.fs = hoodieTable.getMetaClient().getFs();
     this.hoodieTable = hoodieTable;
@@ -59,6 +65,14 @@ public abstract class HoodieIOHandle<T extends HoodieRecordPayload> {
     this.schema = createHoodieWriteSchema(config);
     this.timer = new HoodieTimer().startTimer();
     this.writeStatus = ReflectionUtils.loadClass(config.getWriteStatusClassName());
+  }
+
+  /**
+   * Generate a write token based on the currently running spark task and its place in the spark dag.
+   */
+  public static String makeSparkWriteToken() {
+    return FSUtils.makeWriteToken(TaskContext.getPartitionId(), TaskContext.get().stageId(),
+        TaskContext.get().taskAttemptId());
   }
 
   /**
@@ -87,24 +101,21 @@ public abstract class HoodieIOHandle<T extends HoodieRecordPayload> {
     return HoodieAvroUtils.addMetadataFields(new Schema.Parser().parse(config.getSchema()));
   }
 
-  public Path makeNewPath(String partitionPath, int taskPartitionId, String fileName) {
+  // FIX(vc) :  should this be public
+  public Path makeNewPath(String partitionPath) {
     Path path = FSUtils.getPartitionPath(config.getBasePath(), partitionPath);
     try {
       fs.mkdirs(path); // create a new partition as needed.
     } catch (IOException e) {
       throw new HoodieIOException("Failed to make dir " + path, e);
     }
-
-    return new Path(path.toString(),
-        FSUtils.makeDataFileName(commitTime, taskPartitionId, fileName));
+    return new Path(path.toString(), FSUtils.makeDataFileName(commitTime, writeToken, fileId));
   }
 
-  public Path makeTempPath(String partitionPath, int taskPartitionId, String fileName, int stageId,
-      long taskAttemptId) {
+  public Path makeTempPath(String partitionPath) {
     Path path = new Path(config.getBasePath(), HoodieTableMetaClient.TEMPFOLDER_NAME);
     return new Path(path.toString(),
-        FSUtils.makeTempDataFileName(partitionPath, commitTime, taskPartitionId, fileName, stageId,
-            taskAttemptId));
+        FSUtils.makeTempDataFileName(partitionPath, commitTime, fileId, writeToken));
   }
 
   public Schema getSchema() {

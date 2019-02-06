@@ -31,6 +31,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.UUID;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
@@ -92,26 +93,24 @@ public class FSUtils {
     return fs;
   }
 
-  public static String makeDataFileName(String commitTime, int taskPartitionId, String fileId) {
-    return String.format("%s_%d_%s.parquet", fileId, taskPartitionId, commitTime);
+  /**
+   * A write token uniquely identifies an attempt at one of the IOHandle operations (Merge/Create/Append)
+   */
+  public static String makeWriteToken(int taskPartitionId, int stageId, long taskAttemptId) {
+    return String.format("%d-%d-%d", taskPartitionId, stageId, taskAttemptId);
   }
 
-  public static String makeTempDataFileName(String partitionPath, String commitTime,
-      int taskPartitionId, String fileId, int stageId, long taskAttemptId) {
-    return String.format("%s_%s_%d_%s_%d_%d.parquet", partitionPath.replace("/", "-"), fileId,
-        taskPartitionId, commitTime, stageId, taskAttemptId);
+  public static String makeDataFileName(String commitTime, String writeToken, String fileId) {
+    return String.format("%s_%s_%s.parquet", fileId, writeToken, commitTime);
+  }
+
+  public static String makeTempDataFileName(String partitionPath, String commitTime, String fileId, String writeToken) {
+    return String.format("%s_%s_%s_%s.parquet", partitionPath.replace("/", "-"), fileId,
+        writeToken, commitTime);
   }
 
   public static String maskWithoutFileId(String commitTime, int taskPartitionId) {
     return String.format("*_%s_%s.parquet", taskPartitionId, commitTime);
-  }
-
-  public static String maskWithoutTaskPartitionId(String commitTime, String fileId) {
-    return String.format("%s_*_%s.parquet", fileId, commitTime);
-  }
-
-  public static String maskWithOnlyCommitTime(String commitTime) {
-    return String.format("*_*_%s.parquet", commitTime);
   }
 
   public static String getCommitFromCommitFile(String commitFileName) {
@@ -200,6 +199,12 @@ public class FSUtils {
     return name.replace(getFileExtension(name), "");
   }
 
+  /**
+   * Returns a new unique prefix for creating a file group.
+   */
+  public static String createNewFileIdPfx() {
+    return UUID.randomUUID().toString();
+  }
 
   /**
    * Get the file extension from the log file
@@ -261,11 +266,6 @@ public class FSUtils {
       String baseCommitTime, int version) {
     return LOG_FILE_PREFIX + String
         .format("%s_%s%s.%d", fileId, baseCommitTime, logFileExtension, version);
-  }
-
-  public static String maskWithoutLogVersion(String commitTime, String fileId,
-      String logFileExtension) {
-    return LOG_FILE_PREFIX + String.format("%s_%s%s*", fileId, commitTime, logFileExtension);
   }
 
   public static boolean isLogFile(Path logPath) {
@@ -339,10 +339,6 @@ public class FSUtils {
 
   public static Short getDefaultReplication(FileSystem fs, Path path) {
     return fs.getDefaultReplication(path);
-  }
-
-  public static Long getDefaultBlockSize(FileSystem fs, Path path) {
-    return fs.getDefaultBlockSize(path);
   }
 
   /**

@@ -149,7 +149,7 @@ public class CompactionTestUtils {
         FileSlice slice = new FileSlice(instantId, fileId);
         if (createDataFile) {
           slice.setDataFile(new TestHoodieDataFile(metaClient.getBasePath() + "/" + DEFAULT_PARTITION_PATHS[0]
-              + "/" + FSUtils.makeDataFileName(instantId, 1, fileId)));
+              + "/" + FSUtils.makeDataFileName(instantId, "1-0-1", fileId)));
         }
         String logFilePath1 = HoodieTestUtils
             .getLogFilePath(metaClient.getBasePath(), DEFAULT_PARTITION_PATHS[0], instantId, fileId,
