@@ -81,6 +81,7 @@
                   <include>org.apache.hive:hive-service</include>
                   <include>org.apache.hive:hive-metastore</include>
                   <include>org.apache.hive:hive-jdbc</include>
+                  <include>com.databricks:spark-avro_2.11</include>
                 </includes>
               </artifactSet>
               <relocations>
