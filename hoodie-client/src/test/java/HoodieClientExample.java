@@ -93,7 +93,7 @@ public class HoodieClientExample {
         .forTable(tableName)
         .withIndexConfig(HoodieIndexConfig.newBuilder().withIndexType(IndexType.BLOOM).build())
         .withCompactionConfig(
-            HoodieCompactionConfig.newBuilder().archiveCommitsWith(2, 3).build()).build();
+            HoodieCompactionConfig.newBuilder().archiveCommitsWith(20, 30).build()).build();
     HoodieWriteClient client = new HoodieWriteClient(jsc, cfg);
 
     /**
@@ -115,10 +115,16 @@ public class HoodieClientExample {
     writeRecords = jsc.<HoodieRecord>parallelize(records, 1);
     client.upsert(writeRecords, newCommitTime);
 
+    newCommitTime = client.startCommit();
+    logger.info("Starting commit " + newCommitTime);
+    records = dataGen.generateInserts(newCommitTime, 100);
+    writeRecords = jsc.<HoodieRecord>parallelize(records, 1);
+    client.upsert(writeRecords, newCommitTime);
+
     /**
      * Schedule a compaction and also perform compaction on a MOR dataset
      */
-    if (HoodieTableType.valueOf(tableType) == HoodieTableType.MERGE_ON_READ) {
+    if (false && HoodieTableType.valueOf(tableType) == HoodieTableType.MERGE_ON_READ) {
       Optional<String> instant = client.scheduleCompaction(Optional.empty());
       JavaRDD<WriteStatus> writeStatues = client.compact(instant.get());
       client.commitCompaction(instant.get(), writeStatues, Optional.empty());

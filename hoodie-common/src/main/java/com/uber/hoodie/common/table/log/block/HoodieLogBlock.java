@@ -134,6 +134,9 @@ public abstract class HoodieLogBlock {
    * ordinal. Only add new enums at the end.
    */
   public enum FooterMetadataType {
+    BLOOM_FILTER,
+    MIN_RECORD_KEY,
+    MAX_RECORD_KEY
   }
 
   /**

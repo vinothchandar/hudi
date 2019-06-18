@@ -43,10 +43,12 @@ import com.uber.hoodie.exception.HoodieUpsertException;
 import com.uber.hoodie.table.HoodieTable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
@@ -67,6 +69,8 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
   private final String fileId;
   // Buffer for holding records in memory before they are flushed to disk
   private List<IndexedRecord> recordList = new ArrayList<>();
+  // Sorted keys to be stored along side actual records
+  private TreeSet<String> recordKeys = new TreeSet<>();
   // Buffer for holding records (to be deleted) in memory before they are flushed to disk
   private List<HoodieKey> keysToDelete = new ArrayList<>();
 
@@ -203,8 +207,9 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
       header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, instantTime);
       header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, writerSchema.toString());
       if (recordList.size() > 0) {
-        writer = writer.appendBlock(new HoodieAvroDataBlock(recordList, header));
+        writer = writer.appendBlock(new HoodieAvroDataBlock(recordList, header, new HashMap<>(), recordKeys));
         recordList.clear();
+        recordKeys.clear();
       }
       if (keysToDelete.size() > 0) {
         writer = writer.appendBlock(
@@ -290,6 +295,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
     Optional<IndexedRecord> indexedRecord = getIndexedRecord(record);
     if (indexedRecord.isPresent()) {
       recordList.add(indexedRecord.get());
+      recordKeys.add(record.getRecordKey());
     } else {
       keysToDelete.add(record.getKey());
     }

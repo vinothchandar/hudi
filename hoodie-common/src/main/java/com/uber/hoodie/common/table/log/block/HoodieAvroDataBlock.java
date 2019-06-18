@@ -20,24 +20,29 @@ package com.uber.hoodie.common.table.log.block;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.uber.hoodie.common.model.HoodieLogFile;
+import com.uber.hoodie.common.model.HoodieRecord;
 import com.uber.hoodie.common.storage.SizeAwareDataInputStream;
 import com.uber.hoodie.common.util.HoodieAvroUtils;
 import com.uber.hoodie.exception.HoodieIOException;
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.TreeSet;
 import javax.annotation.Nonnull;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericDatumReader;
 import org.apache.avro.generic.GenericDatumWriter;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
 import org.apache.avro.io.BinaryDecoder;
 import org.apache.avro.io.BinaryEncoder;
@@ -56,20 +61,23 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
 
   private List<IndexedRecord> records;
   private Schema schema;
+  private TreeSet<String> keys;
   private ThreadLocal<BinaryEncoder> encoderCache = new ThreadLocal<>();
   private ThreadLocal<BinaryDecoder> decoderCache = new ThreadLocal<>();
 
   public HoodieAvroDataBlock(@Nonnull List<IndexedRecord> records,
       @Nonnull Map<HeaderMetadataType, String> header,
-      @Nonnull Map<HeaderMetadataType, String> footer) {
+      @Nonnull Map<HeaderMetadataType, String> footer,
+      @Nonnull TreeSet<String> keys) {
     super(header, footer, Optional.empty(), Optional.empty(), null, false);
     this.records = records;
-    this.schema = Schema.parse(super.getLogBlockHeader().get(HeaderMetadataType.SCHEMA));
+    this.schema = new Schema.Parser().parse(super.getLogBlockHeader().get(HeaderMetadataType.SCHEMA));
+    this.keys = keys;
   }
 
   public HoodieAvroDataBlock(@Nonnull List<IndexedRecord> records,
       @Nonnull Map<HeaderMetadataType, String> header) {
-    this(records, header, new HashMap<>());
+    this(records, header, new HashMap<>(), new TreeSet<>());
   }
 
   private HoodieAvroDataBlock(Optional<byte[]> content, @Nonnull FSDataInputStream inputStream,
@@ -94,7 +102,6 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
     return new HoodieAvroDataBlock(content, inputStream, readBlockLazily,
         Optional.of(new HoodieLogBlockContentLocation(logFile, position, blockSize, blockEndpos)),
         readerSchema, header, footer);
-
   }
 
   @Override
@@ -114,12 +121,20 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
     DataOutputStream output = new DataOutputStream(baos);
 
     // 1. Write out the log block version
-    output.writeInt(HoodieLogBlock.version);
+    output.writeInt(HoodieAvroDataBlockVersion.CURRENT_VERSION);
 
-    // 2. Write total number of records
+    // 2. Write out number of keys (this is different from #records, since caller path can pass an empty key set)
+    output.writeInt(keys.size());
+    for (String k : keys) {
+      byte[] keyBytes = k.getBytes(StandardCharsets.UTF_8);
+      output.writeInt(keyBytes.length);
+      output.write(keyBytes);
+    }
+
+    // 3. Write total number of records
     output.writeInt(records.size());
 
-    // 3. Write the records
+    // 4. Write the records
     Iterator<IndexedRecord> itr = records.iterator();
     while (itr.hasNext()) {
       IndexedRecord s = itr.next();
@@ -163,6 +178,49 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
     return records;
   }
 
+  private TreeSet<String> readKeys(SizeAwareDataInputStream dis) throws IOException {
+    TreeSet<String> keys = new TreeSet<>();
+    int numKeys = dis.readInt();
+    for (int i = 0; i < numKeys; i++) {
+      byte[] key = new byte[dis.readInt()];
+      dis.readFully(key);
+      keys.add(new String(key, StandardCharsets.UTF_8));
+    }
+    return keys;
+  }
+
+  public TreeSet<String> getKeys() {
+    try {
+      inputStream.seek(this.getBlockContentLocation().get().getContentPositionInLogFile());
+      BufferedInputStream bis = new BufferedInputStream(inputStream, 1024 * 1024);
+      SizeAwareDataInputStream dis = new SizeAwareDataInputStream(new DataInputStream(bis));
+
+      // 1. Read version for this data block
+      int version = dis.readInt();
+      HoodieAvroDataBlockVersion logBlockVersion = new HoodieAvroDataBlockVersion(version);
+
+      if (logBlockVersion.hasKeys()) {
+        // 2. Read the keys out
+        TreeSet<String> keys = readKeys(dis);
+        inputStream.seek(this.getBlockContentLocation().get().getBlockEndPos());
+        return keys;
+      } else {
+        TreeSet<String> keys = new TreeSet<>();
+        // for old blocks, fallback to reading all the records and picking out only keys
+        if (records == null) {
+          getRecords();
+        }
+        for (IndexedRecord indexedRecord : records) {
+          keys.add(((GenericRecord) indexedRecord).get(HoodieRecord.RECORD_KEY_METADATA_FIELD).toString());
+        }
+      }
+
+      return keys;
+    } catch (IOException ioe) {
+      throw new HoodieIOException("Unable to read keys from data block", ioe);
+    }
+  }
+
   public Schema getSchema() {
     // if getSchema was invoked before converting byte [] to records
     if (records == null) {
@@ -195,6 +253,11 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
     // If readerSchema was not present, use writerSchema
     if (schema == null) {
       schema = writerSchema;
+    }
+
+    // 2. read out keys, if present
+    if (logBlockVersion.hasKeys()) {
+      readKeys(dis);
     }
 
     GenericDatumReader<IndexedRecord> reader = new GenericDatumReader<>(writerSchema, schema);

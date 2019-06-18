@@ -82,7 +82,6 @@ public class HoodieLogFileCommand implements CommandMarker {
     Map<String, List<Tuple3<HoodieLogBlockType, Tuple2<Map<HeaderMetadataType, String>, Map<HeaderMetadataType,
         String>>, Integer>>>
         commitCountAndMetadata = Maps.newHashMap();
-    int totalEntries = 0;
     int numCorruptBlocks = 0;
     int dummyInstantTimeCount = 0;
 
@@ -123,25 +122,22 @@ public class HoodieLogFileCommand implements CommandMarker {
         if (commitCountAndMetadata.containsKey(instantTime)) {
           commitCountAndMetadata.get(instantTime).add(
               new Tuple3<>(n.getBlockType(), new Tuple2<>(n.getLogBlockHeader(), n.getLogBlockFooter()), recordCount));
-          totalEntries++;
         } else {
           List<Tuple3<HoodieLogBlockType, Tuple2<Map<HeaderMetadataType, String>, Map<HeaderMetadataType, String>>,
               Integer>> list = new ArrayList<>();
           list.add(
               new Tuple3<>(n.getBlockType(), new Tuple2<>(n.getLogBlockHeader(), n.getLogBlockFooter()), recordCount));
           commitCountAndMetadata.put(instantTime, list);
-          totalEntries++;
         }
       }
       reader.close();
     }
     List<Comparable[]> rows = new ArrayList<>();
-    int i = 0;
     ObjectMapper objectMapper = new ObjectMapper();
     for (Map.Entry<String, List<Tuple3<HoodieLogBlockType,
             Tuple2<Map<HeaderMetadataType, String>, Map<HeaderMetadataType, String>>, Integer>>> entry
         : commitCountAndMetadata.entrySet()) {
-      String instantTime = entry.getKey().toString();
+      String instantTime = entry.getKey();
       for (Tuple3<HoodieLogBlockType, Tuple2<Map<HeaderMetadataType, String>,
           Map<HeaderMetadataType, String>>, Integer> tuple3 : entry.getValue()) {
         Comparable[] output = new Comparable[5];
@@ -151,7 +147,6 @@ public class HoodieLogFileCommand implements CommandMarker {
         output[3] = objectMapper.writeValueAsString(tuple3._2()._1());
         output[4] = objectMapper.writeValueAsString(tuple3._2()._2());
         rows.add(output);
-        i++;
       }
     }
 
@@ -171,7 +166,9 @@ public class HoodieLogFileCommand implements CommandMarker {
       @CliOption(key = "logFilePathPattern", mandatory = true, help = "Fully qualified paths for the log files")
       final String logFilePathPattern,
       @CliOption(key = "mergeRecords", mandatory = false, help = "If the records in the log files should be merged",
-          unspecifiedDefaultValue = "false") final Boolean shouldMerge)
+          unspecifiedDefaultValue = "false") final boolean shouldMerge,
+      @CliOption(key = "onlyKeys", mandatory = false, help = "If only record keys need to be printed out.",
+          unspecifiedDefaultValue = "false") final boolean onlyKeys)
       throws IOException {
 
     System.out.println("===============> Showing only " + limit + " records <===============");
@@ -186,7 +183,7 @@ public class HoodieLogFileCommand implements CommandMarker {
     Schema readerSchema = converter.convert(
         SchemaUtil.readSchemaFromLogFile(fs, new Path(logFilePaths.get(logFilePaths.size() - 1))));
 
-    List<IndexedRecord> allRecords = new ArrayList<>();
+    List<String> allRecords = new ArrayList<>();
 
     if (shouldMerge) {
       System.out.println("===========================> MERGING RECORDS <===================");
@@ -204,7 +201,7 @@ public class HoodieLogFileCommand implements CommandMarker {
         if (allRecords.size() >= limit) {
           break;
         }
-        allRecords.add(record.get());
+        allRecords.add(record.get().toString());
       }
     } else {
       for (String logFile : logFilePaths) {
@@ -217,8 +214,11 @@ public class HoodieLogFileCommand implements CommandMarker {
           HoodieLogBlock n = reader.next();
           if (n instanceof HoodieAvroDataBlock) {
             HoodieAvroDataBlock blk = (HoodieAvroDataBlock) n;
-            List<IndexedRecord> records = blk.getRecords();
-            allRecords.addAll(records);
+            if (onlyKeys) {
+              allRecords.addAll(blk.getKeys());
+            } else {
+              allRecords.addAll(blk.getRecords().stream().map(IndexedRecord::toString).collect(Collectors.toList()));
+            }
             if (allRecords.size() >= limit) {
               break;
             }
@@ -230,9 +230,9 @@ public class HoodieLogFileCommand implements CommandMarker {
         }
       }
     }
-    String[][] rows = new String[allRecords.size() + 1][];
+    String[][] rows = new String[allRecords.size()][];
     int i = 0;
-    for (IndexedRecord record : allRecords) {
+    for (String record : allRecords) {
       String[] data = new String[1];
       data[0] = record.toString();
       rows[i] = data;
