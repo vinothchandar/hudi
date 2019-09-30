@@ -475,8 +475,7 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
   }
 
   public Double getMaxMemoryFractionPerCompaction() {
-    return Double
-        .valueOf(
+    return Double.valueOf(
             props.getProperty(HoodieMemoryConfig.MAX_MEMORY_FRACTION_FOR_COMPACTION_PROP));
   }
 

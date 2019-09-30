@@ -78,6 +78,7 @@ import org.apache.hudi.table.WorkloadProfile;
 import org.apache.hudi.table.WorkloadStat;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
+import org.apache.spark.HashPartitioner;
 import org.apache.spark.Partitioner;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.JavaRDD;
@@ -354,13 +355,18 @@ public class HoodieWriteClient<T extends HoodieRecordPayload> extends AbstractHo
       repartitionedRecords = bulkInsertPartitioner.get()
           .repartitionRecords(dedupedRecords, parallelism);
     } else {
+      repartitionedRecords = dedupedRecords
+          .mapToPair(record -> new Tuple2<>(
+              String.format("%s+%s", record.getPartitionPath(), record.getRecordKey()), record))
+          .repartitionAndSortWithinPartitions(new HashPartitioner(parallelism))
+          .values();
       // Now, sort the records and line them up nicely for loading.
-      repartitionedRecords = dedupedRecords.sortBy(record -> {
-        // Let's use "partitionPath + key" as the sort key. Spark, will ensure
-        // the records split evenly across RDD partitions, such that small partitions fit
-        // into 1 RDD partition, while big ones spread evenly across multiple RDD partitions
-        return String.format("%s+%s", record.getPartitionPath(), record.getRecordKey());
-      }, true, parallelism);
+      //repartitionedRecords = dedupedRecords.sortBy(record -> {
+      // Let's use "partitionPath + key" as the sort key. Spark, will ensure
+      // the records split evenly across RDD partitions, such that small partitions fit
+      // into 1 RDD partition, while big ones spread evenly across multiple RDD partitions
+      //  return String.format("%s+%s", record.getPartitionPath(), record.getRecordKey());
+      //}, true, parallelism);
     }
 
     //generate new file ID prefixes for each output partition
