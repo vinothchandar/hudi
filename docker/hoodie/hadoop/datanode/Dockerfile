@@ -22,8 +22,8 @@ FROM apachehudi/hudi-hadoop_${HADOOP_VERSION}-base:latest
 
 ENV HADOOP_DN_PORT ${HADOOP_DN_PORT}
 
-ENV HDFS_CONF_dfs_datanode_data_dir=file:///hadoop/dfs/data
-RUN mkdir -p /hadoop/dfs/data
+ENV HDFS_CONF_dfs_datanode_data_dir=file:///tmp/hadoop/dfs/data
+RUN mkdir -p /tmp/hadoop/dfs/data
 VOLUME /hadoop/dfs/data
 
 ADD run_dn.sh /run_dn.sh
