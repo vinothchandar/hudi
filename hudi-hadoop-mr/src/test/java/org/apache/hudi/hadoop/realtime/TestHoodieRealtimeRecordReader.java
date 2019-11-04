@@ -61,8 +61,7 @@ import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock.HoodieCommandBlockTypeEnum;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.HoodieAvroUtils;
 import org.apache.hudi.common.util.SchemaTestUtil;
@@ -105,10 +104,10 @@ public class TestHoodieRealtimeRecordReader {
         .overBaseCommit(baseCommit).withFs(fs).withLogVersion(logVersion).withLogWriteToken("1-0-1")
         .withFileExtension(HoodieLogFile.DELTA_EXTENSION).build();
     // generate metadata
-    Map<HeaderMetadataType, String> header = Maps.newHashMap();
-    header.put(HeaderMetadataType.INSTANT_TIME, newCommit);
-    header.put(HeaderMetadataType.TARGET_INSTANT_TIME, rolledBackInstant);
-    header.put(HeaderMetadataType.COMMAND_BLOCK_TYPE,
+    Map<BlockMetadataType, String> header = Maps.newHashMap();
+    header.put(BlockMetadataType.INSTANT_TIME, newCommit);
+    header.put(BlockMetadataType.TARGET_INSTANT_TIME, rolledBackInstant);
+    header.put(BlockMetadataType.COMMAND_BLOCK_TYPE,
         String.valueOf(HoodieCommandBlockTypeEnum.ROLLBACK_PREVIOUS_BLOCK.ordinal()));
     // if update belongs to an existing log file
     writer = writer.appendBlock(new HoodieCommandBlock(header));
@@ -126,9 +125,9 @@ public class TestHoodieRealtimeRecordReader {
       records.add(SchemaTestUtil.generateAvroRecordFromJson(schema, i, newCommit, "fileid0"));
     }
     Schema writeSchema = records.get(0).getSchema();
-    Map<HeaderMetadataType, String> header = Maps.newHashMap();
-    header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, newCommit);
-    header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, writeSchema.toString());
+    Map<BlockMetadataType, String> header = Maps.newHashMap();
+    header.put(BlockMetadataType.INSTANT_TIME, newCommit);
+    header.put(BlockMetadataType.SCHEMA, writeSchema.toString());
     HoodieAvroDataBlock dataBlock = new HoodieAvroDataBlock(records, header);
     writer = writer.appendBlock(dataBlock);
     return writer;
@@ -140,11 +139,11 @@ public class TestHoodieRealtimeRecordReader {
         .withFileExtension(HoodieLogFile.DELTA_EXTENSION).withFileId(fileId).overBaseCommit(baseCommit)
         .withLogVersion(logVersion).withFs(fs).build();
 
-    Map<HoodieLogBlock.HeaderMetadataType, String> header = Maps.newHashMap();
-    header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, newCommit);
-    header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, schema.toString());
-    header.put(HoodieLogBlock.HeaderMetadataType.TARGET_INSTANT_TIME, oldCommit);
-    header.put(HeaderMetadataType.COMMAND_BLOCK_TYPE,
+    Map<BlockMetadataType, String> header = Maps.newHashMap();
+    header.put(BlockMetadataType.INSTANT_TIME, newCommit);
+    header.put(BlockMetadataType.SCHEMA, schema.toString());
+    header.put(BlockMetadataType.TARGET_INSTANT_TIME, oldCommit);
+    header.put(BlockMetadataType.COMMAND_BLOCK_TYPE,
         String.valueOf(HoodieCommandBlockTypeEnum.ROLLBACK_PREVIOUS_BLOCK.ordinal()));
     HoodieCommandBlock rollbackBlock = new HoodieCommandBlock(header);
     writer = writer.appendBlock(rollbackBlock);

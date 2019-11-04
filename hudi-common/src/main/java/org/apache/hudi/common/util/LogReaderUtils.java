@@ -20,7 +20,11 @@ package org.apache.hudi.common.util;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
+import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import org.apache.avro.Schema;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -32,51 +36,66 @@ import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Reader;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieLogBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
+
 
 /**
  * Utils class for performing various log file reading operations
  */
 public class LogReaderUtils {
 
-  private static Schema readSchemaFromLogFileInReverse(FileSystem fs, HoodieActiveTimeline activeTimeline, Path path)
-      throws IOException {
-    Reader reader = HoodieLogFormat.newReader(fs, new HoodieLogFile(path), null, true, true);
-    Schema writerSchema = null;
-    HoodieTimeline completedTimeline = activeTimeline.getCommitsTimeline().filterCompletedInstants();
-    while (reader.hasPrev()) {
-      HoodieLogBlock block = reader.prev();
-      if (block instanceof HoodieAvroDataBlock && block != null) {
-        HoodieAvroDataBlock lastBlock = (HoodieAvroDataBlock) block;
-        if (completedTimeline
-            .containsOrBeforeTimelineStarts(lastBlock.getLogBlockHeader().get(HeaderMetadataType.INSTANT_TIME))) {
-          writerSchema = Schema.parse(lastBlock.getLogBlockHeader().get(HeaderMetadataType.SCHEMA));
-          break;
-        }
-      }
-    }
-    reader.close();
-    return writerSchema;
-  }
-
   public static Schema readLatestSchemaFromLogFiles(String basePath, List<String> deltaFilePaths, JobConf jobConf)
       throws IOException {
     HoodieTableMetaClient metaClient = new HoodieTableMetaClient(jobConf, basePath);
-    List<String> deltaPaths = deltaFilePaths.stream().map(s -> new HoodieLogFile(new Path(s)))
-        .sorted(HoodieLogFile.getReverseLogFileComparator()).map(s -> s.getPath().toString())
-        .collect(Collectors.toList());
-    if (deltaPaths.size() > 0) {
-      for (String logPath : deltaPaths) {
-        FileSystem fs = FSUtils.getFs(logPath, jobConf);
-        Schema schemaFromLogFile =
-            readSchemaFromLogFileInReverse(fs, metaClient.getActiveTimeline(), new Path(logPath));
-        if (schemaFromLogFile != null) {
-          return schemaFromLogFile;
+    Map<BlockMetadataType, String> blockMetadata = readLatestMetadataFromLogFiles(
+        deltaFilePaths.stream().map(s -> new HoodieLogFile(new Path(s))),
+        metaClient, HoodieAvroDataBlock::getLogBlockHeader);
+
+    if (blockMetadata != null) {
+      return new Schema.Parser().parse(blockMetadata.get(BlockMetadataType.SCHEMA));
+    }
+    return null;
+  }
+
+  private static Map<BlockMetadataType, String> readLatestMetadataFromLogFileInReverse(
+      FileSystem fs, HoodieActiveTimeline activeTimeline, Path path,
+      Function<HoodieAvroDataBlock, Map<BlockMetadataType, String>> extractorFn)
+      throws IOException {
+    try (Reader reader = HoodieLogFormat.newReader(fs, new HoodieLogFile(path), null, true, true)) {
+      HoodieTimeline completedTimeline = activeTimeline.getCommitsTimeline()
+          .filterCompletedInstants();
+      while (reader.hasPrev()) {
+        HoodieLogBlock block = reader.prev();
+        if (block instanceof HoodieAvroDataBlock && block != null) {
+          HoodieAvroDataBlock lastBlock = (HoodieAvroDataBlock) block;
+          if (completedTimeline
+              .containsOrBeforeTimelineStarts(
+                  lastBlock.getLogBlockHeader().get(BlockMetadataType.INSTANT_TIME))) {
+            return extractorFn.apply(lastBlock);
+          }
         }
       }
     }
     return null;
   }
 
+  public static Map<BlockMetadataType, String> readLatestMetadataFromLogFiles(
+      Stream<HoodieLogFile> deltaFilePaths, HoodieTableMetaClient metaClient,
+      Function<HoodieAvroDataBlock, Map<BlockMetadataType, String>> extractorFn)
+      throws IOException {
+    List<HoodieLogFile> sortedDeltaPaths = deltaFilePaths.sorted(HoodieLogFile.getReverseLogFileComparator())
+        .collect(Collectors.toList());
+    if (sortedDeltaPaths.size() > 0) {
+      for (HoodieLogFile logPath : sortedDeltaPaths) {
+        FileSystem fs = metaClient.getFs();
+        Map<BlockMetadataType, String> metadataMap = readLatestMetadataFromLogFileInReverse(
+            fs, metaClient.getActiveTimeline(), logPath.getPath(), extractorFn);
+        if (metadataMap != null) {
+          return metadataMap;
+        }
+      }
+    }
+    return null;
+  }
 }

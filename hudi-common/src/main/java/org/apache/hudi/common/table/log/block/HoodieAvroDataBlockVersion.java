@@ -24,6 +24,12 @@ package org.apache.hudi.common.table.log.block;
  */
 final class HoodieAvroDataBlockVersion extends HoodieLogBlockVersion {
 
+  // base version, that has a list of avro records.
+  static final int VERSION_0 = 0;
+  // Also logs the keys & indexing footers
+  static final int VERSION_1 = 1;
+  static final int CURRENT_VERSION = VERSION_1;
+
   HoodieAvroDataBlockVersion(int version) {
     super(version);
   }
@@ -35,5 +41,9 @@ final class HoodieAvroDataBlockVersion extends HoodieLogBlockVersion {
       default:
         return true;
     }
+  }
+
+  public boolean hasKeys() {
+    return super.getVersion() >= VERSION_1;
   }
 }

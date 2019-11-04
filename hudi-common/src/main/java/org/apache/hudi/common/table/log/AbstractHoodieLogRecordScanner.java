@@ -18,7 +18,7 @@
 
 package org.apache.hudi.common.table.log;
 
-import static org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType.INSTANT_TIME;
+import static org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType.INSTANT_TIME;
 import static org.apache.hudi.common.table.log.block.HoodieLogBlock.HoodieLogBlockType.CORRUPT_BLOCK;
 
 import java.io.IOException;
@@ -45,6 +45,7 @@ import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock;
 import org.apache.hudi.common.table.log.block.HoodieDeleteBlock;
 import org.apache.hudi.common.table.log.block.HoodieLogBlock;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.util.SpillableMapUtils;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.log4j.LogManager;
@@ -179,7 +180,7 @@ public abstract class AbstractHoodieLogRecordScanner {
             // This is a command block - take appropriate action based on the command
             HoodieCommandBlock commandBlock = (HoodieCommandBlock) r;
             String targetInstantForCommandBlock =
-                r.getLogBlockHeader().get(HoodieLogBlock.HeaderMetadataType.TARGET_INSTANT_TIME);
+                r.getLogBlockHeader().get(BlockMetadataType.TARGET_INSTANT_TIME);
             switch (commandBlock.getType()) { // there can be different types of command blocks
               case ROLLBACK_PREVIOUS_BLOCK:
                 // Rollback the last read log block

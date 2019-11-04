@@ -19,10 +19,15 @@
 package org.apache.hudi.io;
 
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hudi.common.model.FileSlice;
 import org.apache.hudi.common.model.HoodieDataFile;
 import org.apache.hudi.common.model.HoodieRecordPayload;
+import org.apache.hudi.common.table.TableFileSystemView.RealtimeView;
+import org.apache.hudi.common.table.timeline.HoodieInstant;
+import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.table.HoodieTable;
 
 /**
@@ -55,4 +60,15 @@ public abstract class HoodieReadHandle<T extends HoodieRecordPayload> extends Ho
     return hoodieTable.getROFileSystemView()
         .getLatestDataFile(partitionPathFilePair.getLeft(), partitionPathFilePair.getRight()).get();
   }
+
+  protected FileSlice getLatestMergedFileSlice() {
+    HoodieInstant lastInstant = hoodieTable.getMetaClient().getCommitsAndCompactionTimeline().lastInstant().get();
+    RealtimeView rtView = hoodieTable.getRTFileSystemView();
+    Option<FileSlice> fileSliceOpt = Option.fromJavaOptional(
+        rtView.getLatestMergedFileSlicesBeforeOrOn(partitionPathFilePair.getLeft(), lastInstant.getTimestamp())
+            .filter(slice -> slice.getFileId().equals(partitionPathFilePair.getRight())).findFirst());
+    return fileSliceOpt.orElseThrow(() ->
+        new HoodieException("Unable to find a file slice for partition path/file group :" + partitionPathFilePair));
+  }
+
 }

@@ -35,7 +35,7 @@ import org.apache.hudi.common.table.log.block.HoodieCommandBlock;
 import org.apache.hudi.common.table.log.block.HoodieCorruptBlock;
 import org.apache.hudi.common.table.log.block.HoodieDeleteBlock;
 import org.apache.hudi.common.table.log.block.HoodieLogBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.table.log.block.HoodieLogBlock.HoodieLogBlockType;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.Option;
@@ -124,7 +124,7 @@ class HoodieLogFileReader implements HoodieLogFormat.Reader {
     int blocksize = -1;
     int type = -1;
     HoodieLogBlockType blockType = null;
-    Map<HeaderMetadataType, String> header = null;
+    Map<BlockMetadataType, String> header = null;
 
     try {
       // 1 Read the total size of the block
@@ -172,7 +172,7 @@ class HoodieLogFileReader implements HoodieLogFormat.Reader {
     byte[] content = HoodieLogBlock.readOrSkipContent(inputStream, contentLength, readBlockLazily);
 
     // 7. Read footer if any
-    Map<HeaderMetadataType, String> footer = null;
+    Map<BlockMetadataType, String> footer = null;
     if (nextBlockVersion.hasFooter()) {
       footer = HoodieLogBlock.getLogMetadata(inputStream);
     }

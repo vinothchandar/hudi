@@ -57,8 +57,7 @@ import org.apache.hudi.common.table.HoodieTimeline;
 import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.FileIOUtils;
 import org.apache.hudi.common.util.SchemaTestUtil;
@@ -293,9 +292,9 @@ public class TestUtil {
         .overBaseCommit(dataFile.getCommitTime()).withFs(fileSystem).build();
     List<IndexedRecord> records = (isLogSchemaSimple ? SchemaTestUtil.generateTestRecords(0, 100)
         : SchemaTestUtil.generateEvolvedTestRecords(100, 100));
-    Map<HeaderMetadataType, String> header = Maps.newHashMap();
-    header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, dataFile.getCommitTime());
-    header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, schema.toString());
+    Map<BlockMetadataType, String> header = Maps.newHashMap();
+    header.put(BlockMetadataType.INSTANT_TIME, dataFile.getCommitTime());
+    header.put(BlockMetadataType.SCHEMA, schema.toString());
     HoodieAvroDataBlock dataBlock = new HoodieAvroDataBlock(records, header);
     logWriter.appendBlock(dataBlock);
     logWriter.close();

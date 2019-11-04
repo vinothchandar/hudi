@@ -45,8 +45,7 @@ import org.apache.hudi.common.table.HoodieTimeline;
 import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieArchivedTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
@@ -256,8 +255,8 @@ public class HoodieCommitArchiveLog {
 
   private void writeToFile(Schema wrapperSchema, List<IndexedRecord> records) throws Exception {
     if (records.size() > 0) {
-      Map<HeaderMetadataType, String> header = Maps.newHashMap();
-      header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, wrapperSchema.toString());
+      Map<BlockMetadataType, String> header = Maps.newHashMap();
+      header.put(BlockMetadataType.SCHEMA, wrapperSchema.toString());
       HoodieAvroDataBlock block = new HoodieAvroDataBlock(records, header);
       this.writer = writer.appendBlock(block);
       records.clear();

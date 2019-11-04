@@ -24,6 +24,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicLong;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.avro.generic.IndexedRecord;
@@ -43,14 +45,14 @@ import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
 import org.apache.hudi.common.table.log.block.HoodieDeleteBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.HoodieAvroUtils;
 import org.apache.hudi.common.util.Option;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieAppendException;
 import org.apache.hudi.exception.HoodieUpsertException;
+import org.apache.hudi.index.bloom.IndexInfo;
 import org.apache.hudi.table.HoodieTable;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -70,6 +72,8 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
   private List<IndexedRecord> recordList = new ArrayList<>();
   // Buffer for holding records (to be deleted) in memory before they are flushed to disk
   private List<HoodieKey> keysToDelete = new ArrayList<>();
+  // Sorted keys to be stored along side actual records
+  private Set<String> recordKeys = new TreeSet<>();
 
   private String partitionPath;
   private Iterator<HoodieRecord<T>> recordItr;
@@ -92,9 +96,11 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
   // Max block size to limit to for a log block
   private int maxBlockSize = config.getLogFileDataBlockMaxSize();
   // Header metadata for a log block
-  private Map<HeaderMetadataType, String> header = Maps.newHashMap();
+  private Map<BlockMetadataType, String> header = Maps.newHashMap();
   // Total number of new records inserted into the delta file
   private long insertRecordsWritten = 0;
+  // Cumulative indexing information i.e for all the records from data file to previous logs/blocks
+  private IndexInfo indexInfo;
 
   public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable, String fileId,
       Iterator<HoodieRecord<T>> recordItr) {
@@ -106,6 +112,10 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
 
   public HoodieAppendHandle(HoodieWriteConfig config, String commitTime, HoodieTable<T> hoodieTable, String fileId) {
     this(config, commitTime, hoodieTable, fileId, null);
+  }
+
+  private void initIndexInfo(RealtimeView rtView) {
+
   }
 
   private void init(HoodieRecord record) {
@@ -121,7 +131,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
       } else {
         // This means there is no base data file, start appending to a new log file
         fileSlice = Option.of(new FileSlice(partitionPath, baseInstantTime, this.fileId));
-        logger.info("New InsertHandle for partition :" + partitionPath);
+        logger.info("New file slice for partition :" + partitionPath);
       }
       writeStatus.getStat().setPrevCommit(baseInstantTime);
       writeStatus.setFileId(fileId);
@@ -129,6 +139,8 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
       writeStatus.getStat().setPartitionPath(partitionPath);
       writeStatus.getStat().setFileId(fileId);
       averageRecordSize = SizeEstimator.estimate(record);
+      initIndexInfo();
+
       try {
         this.writer = createLogWriter(fileSlice, baseInstantTime);
         this.currentLogFile = writer.getLogFile();
@@ -185,24 +197,25 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
 
   // TODO (NA) - Perform a writerSchema check of current input record with the last writerSchema on log file
   // to make sure we don't append records with older (shorter) writerSchema than already appended
-  public void doAppend() {
+  public void doAppends() {
     while (recordItr.hasNext()) {
       HoodieRecord record = recordItr.next();
       init(record);
       flushToDiskIfRequired(record);
       writeToBuffer(record);
     }
-    doAppend(header);
+    doAppends(header);
     estimatedNumberOfBytesWritten += averageRecordSize * numberOfRecords;
   }
 
-  private void doAppend(Map<HeaderMetadataType, String> header) {
+  private void doAppends(Map<BlockMetadataType, String> header) {
     try {
-      header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, instantTime);
-      header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, writerSchema.toString());
+      header.put(BlockMetadataType.INSTANT_TIME, instantTime);
+      header.put(BlockMetadataType.SCHEMA, writerSchema.toString());
       if (recordList.size() > 0) {
         writer = writer.appendBlock(new HoodieAvroDataBlock(recordList, header));
         recordList.clear();
+        recordKeys.clear();
       }
       if (keysToDelete.size() > 0) {
         writer = writer.appendBlock(new HoodieDeleteBlock(keysToDelete.stream().toArray(HoodieKey[]::new), header));
@@ -238,7 +251,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
   public WriteStatus close() {
     try {
       // flush any remaining records to disk
-      doAppend(header);
+      doAppends(header);
       long sizeInBytes = writer.getCurrentSize();
       if (writer != null) {
         writer.close();
@@ -292,6 +305,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
     Option<IndexedRecord> indexedRecord = getIndexedRecord(record);
     if (indexedRecord.isPresent()) {
       recordList.add(indexedRecord.get());
+      recordKeys.add(record.getRecordKey());
     } else {
       keysToDelete.add(record.getKey());
     }
@@ -308,7 +322,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
       // avg of new and old
       logger.info("AvgRecordSize => " + averageRecordSize);
       averageRecordSize = (averageRecordSize + SizeEstimator.estimate(record)) / 2;
-      doAppend(header);
+      doAppends(header);
       estimatedNumberOfBytesWritten += averageRecordSize * numberOfRecords;
       numberOfRecords = 0;
     }

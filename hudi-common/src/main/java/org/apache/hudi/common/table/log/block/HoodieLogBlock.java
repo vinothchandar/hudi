@@ -46,9 +46,9 @@ public abstract class HoodieLogBlock {
    */
   public static int version = 1;
   // Header for each log block
-  private final Map<HeaderMetadataType, String> logBlockHeader;
+  private final Map<BlockMetadataType, String> logBlockHeader;
   // Footer for each log block
-  private final Map<HeaderMetadataType, String> logBlockFooter;
+  private final Map<BlockMetadataType, String> logBlockFooter;
   // Location of a log block on disk
   private final Option<HoodieLogBlockContentLocation> blockContentLocation;
   // data for a specific block
@@ -60,8 +60,8 @@ public abstract class HoodieLogBlock {
   // Toggle flag, whether to read blocks lazily (I/O intensive) or not (Memory intensive)
   protected boolean readBlockLazily;
 
-  public HoodieLogBlock(@Nonnull Map<HeaderMetadataType, String> logBlockHeader,
-      @Nonnull Map<HeaderMetadataType, String> logBlockFooter,
+  public HoodieLogBlock(@Nonnull Map<BlockMetadataType, String> logBlockHeader,
+      @Nonnull Map<BlockMetadataType, String> logBlockFooter,
       @Nonnull Option<HoodieLogBlockContentLocation> blockContentLocation, @Nonnull Option<byte[]> content,
       FSDataInputStream inputStream, boolean readBlockLazily) {
     this.logBlockHeader = logBlockHeader;
@@ -93,11 +93,11 @@ public abstract class HoodieLogBlock {
     return this.blockContentLocation;
   }
 
-  public Map<HeaderMetadataType, String> getLogBlockHeader() {
+  public Map<BlockMetadataType, String> getLogBlockHeader() {
     return logBlockHeader;
   }
 
-  public Map<HeaderMetadataType, String> getLogBlockFooter() {
+  public Map<BlockMetadataType, String> getLogBlockFooter() {
     return logBlockFooter;
   }
 
@@ -113,18 +113,14 @@ public abstract class HoodieLogBlock {
   }
 
   /**
-   * Log Metadata headers abstraction for a HoodieLogBlock WARNING : This enum is serialized as the ordinal. Only add
-   * new enums at the end.
+   * Log Metadata abstraction for a HoodieLogBlock
+   * WARNING : This enum is serialized as the ordinal. Only add new enums at the end.
    */
-  public enum HeaderMetadataType {
-    INSTANT_TIME, TARGET_INSTANT_TIME, SCHEMA, COMMAND_BLOCK_TYPE
-  }
-
-  /**
-   * Log Metadata footers abstraction for a HoodieLogBlock WARNING : This enum is serialized as the ordinal. Only add
-   * new enums at the end.
-   */
-  public enum FooterMetadataType {
+  public enum BlockMetadataType {
+    INSTANT_TIME, TARGET_INSTANT_TIME, SCHEMA, COMMAND_BLOCK_TYPE,
+    BLOOM_FILTER,
+    MIN_RECORD_KEY,
+    MAX_RECORD_KEY
   }
 
   /**
@@ -170,11 +166,11 @@ public abstract class HoodieLogBlock {
   /**
    * Convert log metadata to bytes 1. Write size of metadata 2. Write enum ordinal 3. Write actual bytes
    */
-  public static byte[] getLogMetadataBytes(Map<HeaderMetadataType, String> metadata) throws IOException {
+  public static byte[] getLogMetadataBytes(Map<BlockMetadataType, String> metadata) throws IOException {
     ByteArrayOutputStream baos = new ByteArrayOutputStream();
     DataOutputStream output = new DataOutputStream(baos);
     output.writeInt(metadata.size());
-    for (Map.Entry<HeaderMetadataType, String> entry : metadata.entrySet()) {
+    for (Map.Entry<BlockMetadataType, String> entry : metadata.entrySet()) {
       output.writeInt(entry.getKey().ordinal());
       byte[] bytes = entry.getValue().getBytes();
       output.writeInt(bytes.length);
@@ -186,9 +182,9 @@ public abstract class HoodieLogBlock {
   /**
    * Convert bytes to LogMetadata, follow the same order as {@link HoodieLogBlock#getLogMetadataBytes}
    */
-  public static Map<HeaderMetadataType, String> getLogMetadata(DataInputStream dis) throws IOException {
+  public static Map<BlockMetadataType, String> getLogMetadata(DataInputStream dis) throws IOException {
 
-    Map<HeaderMetadataType, String> metadata = Maps.newHashMap();
+    Map<BlockMetadataType, String> metadata = Maps.newHashMap();
     // 1. Read the metadata written out
     int metadataCount = dis.readInt();
     try {
@@ -197,7 +193,7 @@ public abstract class HoodieLogBlock {
         int metadataEntrySize = dis.readInt();
         byte[] metadataEntry = new byte[metadataEntrySize];
         dis.readFully(metadataEntry, 0, metadataEntrySize);
-        metadata.put(HeaderMetadataType.values()[metadataEntryIndex], new String(metadataEntry));
+        metadata.put(BlockMetadataType.values()[metadataEntryIndex], new String(metadataEntry));
         metadataCount--;
       }
       return metadata;

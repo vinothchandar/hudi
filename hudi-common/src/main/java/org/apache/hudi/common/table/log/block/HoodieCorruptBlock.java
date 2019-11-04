@@ -31,8 +31,8 @@ import org.apache.hudi.common.util.Option;
 public class HoodieCorruptBlock extends HoodieLogBlock {
 
   private HoodieCorruptBlock(Option<byte[]> corruptedBytes, FSDataInputStream inputStream, boolean readBlockLazily,
-      Option<HoodieLogBlockContentLocation> blockContentLocation, Map<HeaderMetadataType, String> header,
-      Map<HeaderMetadataType, String> footer) {
+      Option<HoodieLogBlockContentLocation> blockContentLocation, Map<BlockMetadataType, String> header,
+      Map<BlockMetadataType, String> footer) {
     super(header, footer, blockContentLocation, corruptedBytes, inputStream, readBlockLazily);
   }
 
@@ -53,7 +53,7 @@ public class HoodieCorruptBlock extends HoodieLogBlock {
 
   public static HoodieLogBlock getBlock(HoodieLogFile logFile, FSDataInputStream inputStream,
       Option<byte[]> corruptedBytes, boolean readBlockLazily, long position, long blockSize, long blockEndPos,
-      Map<HeaderMetadataType, String> header, Map<HeaderMetadataType, String> footer) {
+      Map<BlockMetadataType, String> header, Map<BlockMetadataType, String> footer) {
 
     return new HoodieCorruptBlock(corruptedBytes, inputStream, readBlockLazily,
         Option.of(new HoodieLogBlockContentLocation(logFile, position, blockSize, blockEndPos)), header, footer);

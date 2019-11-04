@@ -43,7 +43,7 @@ import org.apache.hudi.common.minicluster.MiniClusterUtil;
 import org.apache.hudi.common.model.HoodieArchivedLogFile;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.util.SchemaTestUtil;
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -95,9 +95,9 @@ public class TestHoodieLogFormatAppendFailure {
 
     // Some data & append.
     List<IndexedRecord> records = SchemaTestUtil.generateTestRecords(0, 10);
-    Map<HoodieLogBlock.HeaderMetadataType, String> header = Maps.newHashMap();
-    header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, "100");
-    header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, getSimpleSchema().toString());
+    Map<BlockMetadataType, String> header = Maps.newHashMap();
+    header.put(BlockMetadataType.INSTANT_TIME, "100");
+    header.put(BlockMetadataType.SCHEMA, getSimpleSchema().toString());
     HoodieAvroDataBlock dataBlock = new HoodieAvroDataBlock(records, header);
 
     Writer writer = HoodieLogFormat.newWriterBuilder().onParentPath(testPath)

@@ -66,7 +66,7 @@ import org.apache.hudi.common.table.HoodieTimeline;
 import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.table.timeline.HoodieActiveTimeline;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.table.timeline.HoodieInstant.State;
@@ -340,9 +340,9 @@ public class HoodieTestUtils {
             .withFileExtension(HoodieLogFile.DELTA_EXTENSION).withFileId(location.getFileId())
             .overBaseCommit(location.getInstantTime()).withFs(fs).build();
 
-        Map<HoodieLogBlock.HeaderMetadataType, String> header = Maps.newHashMap();
-        header.put(HoodieLogBlock.HeaderMetadataType.INSTANT_TIME, location.getInstantTime());
-        header.put(HoodieLogBlock.HeaderMetadataType.SCHEMA, schema.toString());
+        Map<BlockMetadataType, String> header = Maps.newHashMap();
+        header.put(BlockMetadataType.INSTANT_TIME, location.getInstantTime());
+        header.put(BlockMetadataType.SCHEMA, schema.toString());
         logWriter.appendBlock(new HoodieAvroDataBlock(s.getValue().stream().map(r -> {
           try {
             GenericRecord val = (GenericRecord) r.getData().getInsertValue(schema).get();

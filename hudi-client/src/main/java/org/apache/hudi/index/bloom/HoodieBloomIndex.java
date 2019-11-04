@@ -38,9 +38,8 @@ import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieIndexConfig;
 import org.apache.hudi.config.HoodieWriteConfig;
-import org.apache.hudi.exception.MetadataNotFoundException;
 import org.apache.hudi.index.HoodieIndex;
-import org.apache.hudi.io.HoodieRangeInfoHandle;
+import org.apache.hudi.io.HoodieIndexInfoHandle;
 import org.apache.hudi.table.HoodieTable;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
@@ -52,7 +51,7 @@ import org.apache.spark.storage.StorageLevel;
 import scala.Tuple2;
 
 /**
- * Indexing mechanism based on bloom filter. Each parquet file includes its row_key bloom filter in its metadata.
+ * Indexing mechanism based on bloom filters and key range information.
  */
 public class HoodieBloomIndex<T extends HoodieRecordPayload> extends HoodieIndex<T> {
 
@@ -252,16 +251,18 @@ public class HoodieBloomIndex<T extends HoodieRecordPayload> extends HoodieIndex
 
     if (config.getBloomIndexPruneByRanges()) {
       // also obtain file ranges, if range pruning is enabled
-      return jsc.parallelize(partitionPathFileIDList, Math.max(partitionPathFileIDList.size(), 1)).mapToPair(pf -> {
-        try {
-          HoodieRangeInfoHandle<T> rangeInfoHandle = new HoodieRangeInfoHandle<T>(config, hoodieTable, pf);
-          String[] minMaxKeys = rangeInfoHandle.getMinMaxKeys();
-          return new Tuple2<>(pf.getKey(), new BloomIndexFileInfo(pf.getValue(), minMaxKeys[0], minMaxKeys[1]));
-        } catch (MetadataNotFoundException me) {
-          logger.warn("Unable to find range metadata in file :" + pf);
-          return new Tuple2<>(pf.getKey(), new BloomIndexFileInfo(pf.getValue()));
-        }
-      }).collect();
+      return jsc.parallelize(partitionPathFileIDList, Math.max(partitionPathFileIDList.size(), 1))
+          .mapToPair(pf -> {
+            HoodieIndexInfoHandle<T> indexInfoHandle = new HoodieIndexInfoHandle<T>(config, hoodieTable, pf);
+            Option<Pair<String, String>> minMaxKeyRanges = indexInfoHandle.getIndexInfo().getMinMaxKeyRange();
+            if (minMaxKeyRanges.isPresent()) {
+              return new Tuple2<>(pf.getKey(), new BloomIndexFileInfo(pf.getValue(),
+                  minMaxKeyRanges.get().getLeft(), minMaxKeyRanges.get().getRight()));
+            } else {
+              logger.warn("Unable to find range metadata in file :" + pf);
+              return new Tuple2<>(pf.getKey(), new BloomIndexFileInfo(pf.getValue()));
+            }
+          }).collect();
     } else {
       return partitionPathFileIDList.stream()
           .map(pf -> new Tuple2<>(pf.getKey(), new BloomIndexFileInfo(pf.getValue()))).collect(toList());

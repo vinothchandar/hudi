@@ -37,7 +37,7 @@ import org.apache.hudi.common.table.log.HoodieLogFormat;
 import org.apache.hudi.common.table.log.HoodieLogFormat.Writer;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock;
 import org.apache.hudi.common.table.log.block.HoodieCommandBlock.HoodieCommandBlockTypeEnum;
-import org.apache.hudi.common.table.log.block.HoodieLogBlock.HeaderMetadataType;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.table.timeline.HoodieInstant;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.config.HoodieWriteConfig;
@@ -109,7 +109,7 @@ public class RollbackExecutor implements Serializable {
                 .withFileExtension(HoodieLogFile.DELTA_EXTENSION).build();
 
             // generate metadata
-            Map<HeaderMetadataType, String> header = generateHeader(instantToRollback.getTimestamp());
+            Map<BlockMetadataType, String> header = generateHeader(instantToRollback.getTimestamp());
             // if update belongs to an existing log file
             writer = writer.appendBlock(new HoodieCommandBlock(header));
             success = true;
@@ -217,12 +217,12 @@ public class RollbackExecutor implements Serializable {
   }
 
 
-  private Map<HeaderMetadataType, String> generateHeader(String commit) {
+  private Map<BlockMetadataType, String> generateHeader(String commit) {
     // generate metadata
-    Map<HeaderMetadataType, String> header = Maps.newHashMap();
-    header.put(HeaderMetadataType.INSTANT_TIME, metaClient.getActiveTimeline().lastInstant().get().getTimestamp());
-    header.put(HeaderMetadataType.TARGET_INSTANT_TIME, commit);
-    header.put(HeaderMetadataType.COMMAND_BLOCK_TYPE,
+    Map<BlockMetadataType, String> header = Maps.newHashMap();
+    header.put(BlockMetadataType.INSTANT_TIME, metaClient.getActiveTimeline().lastInstant().get().getTimestamp());
+    header.put(BlockMetadataType.TARGET_INSTANT_TIME, commit);
+    header.put(BlockMetadataType.COMMAND_BLOCK_TYPE,
         String.valueOf(HoodieCommandBlockTypeEnum.ROLLBACK_PREVIOUS_BLOCK.ordinal()));
     return header;
   }

@@ -40,15 +40,15 @@ public class HoodieDeleteBlock extends HoodieLogBlock {
 
   private HoodieKey[] keysToDelete;
 
-  public HoodieDeleteBlock(HoodieKey[] keysToDelete, Map<HeaderMetadataType, String> header) {
+  public HoodieDeleteBlock(HoodieKey[] keysToDelete, Map<BlockMetadataType, String> header) {
     this(Option.empty(), null, false, Option.empty(), header, new HashMap<>());
     this.keysToDelete = keysToDelete;
   }
 
 
   private HoodieDeleteBlock(Option<byte[]> content, FSDataInputStream inputStream, boolean readBlockLazily,
-      Option<HoodieLogBlockContentLocation> blockContentLocation, Map<HeaderMetadataType, String> header,
-      Map<HeaderMetadataType, String> footer) {
+      Option<HoodieLogBlockContentLocation> blockContentLocation, Map<BlockMetadataType, String> header,
+      Map<BlockMetadataType, String> footer) {
     super(header, footer, blockContentLocation, content, inputStream, readBlockLazily);
   }
 
@@ -100,8 +100,8 @@ public class HoodieDeleteBlock extends HoodieLogBlock {
   }
 
   public static HoodieLogBlock getBlock(HoodieLogFile logFile, FSDataInputStream inputStream, Option<byte[]> content,
-      boolean readBlockLazily, long position, long blockSize, long blockEndPos, Map<HeaderMetadataType, String> header,
-      Map<HeaderMetadataType, String> footer) throws IOException {
+      boolean readBlockLazily, long position, long blockSize, long blockEndPos, Map<BlockMetadataType, String> header,
+      Map<BlockMetadataType, String> footer) throws IOException {
 
     return new HoodieDeleteBlock(content, inputStream, readBlockLazily,
         Option.of(new HoodieLogBlockContentLocation(logFile, position, blockSize, blockEndPos)), header, footer);
