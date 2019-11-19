@@ -18,20 +18,30 @@
 
 package org.apache.hudi.io;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.stream.Collectors;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hudi.common.BloomFilter;
+import org.apache.hudi.common.model.FileSlice;
 import org.apache.hudi.common.model.HoodieDataFile;
+import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.model.HoodieTableType;
+import org.apache.hudi.common.table.log.HoodieLogFormatReader;
+import org.apache.hudi.common.table.log.block.HoodieAvroDataBlock;
+import org.apache.hudi.common.table.log.block.HoodieLogBlock;
 import org.apache.hudi.common.util.HoodieTimer;
 import org.apache.hudi.common.util.ParquetUtils;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.exception.HoodieIndexException;
 import org.apache.hudi.table.HoodieTable;
 import org.apache.log4j.LogManager;
@@ -59,22 +69,21 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
     this.candidateRecordKeys = new ArrayList<>();
     this.totalKeysChecked = 0;
     HoodieTimer timer = new HoodieTimer().startTimer();
-    if (tableType.equals(HoodieTableType.MERGE_ON_READ) && hoodieTable.getIndex().canIndexLogFiles()) {
-      HoodieIndexInfoHandle<T> indexInfoHandle = new HoodieIndexInfoHandle<>(config, hoodieTable, partitionPathFilePair);
-      this.bloomFilter = indexInfoHandle.getIndexInfo().getBloomFilter();
-    } else {
-      this.bloomFilter = ParquetUtils.readBloomFilterFromParquetMetadata(hoodieTable.getHadoopConf(),
-          new Path(getLatestDataFile().getPath()));
-    }
+    HoodieIndexInfoHandle<T> indexInfoHandle = new HoodieIndexInfoHandle<>(config, hoodieTable, partitionPathFilePair);
+    this.bloomFilter = indexInfoHandle.getIndexInfo().getBloomFilter();
     logger.info(String.format("Read bloom filter from %s in %d ms", partitionPathFilePair, timer.endTimer()));
+    System.err.println(">>> Bloom filter for  :" + partitionPathFilePair + " => " + bloomFilter.serializeToString());
+    if (logger.isDebugEnabled()) {
+      logger.debug("Bloom filter for  :" + partitionPathFilePair + " => " + bloomFilter.serializeToString());
+    }
   }
 
   /**
    * Given a list of row keys and one file, return only row keys existing in that file.
    */
-  public static List<String> checkCandidatesAgainstFile(Configuration configuration, List<String> candidateRecordKeys,
+  public static SortedSet<String> checkCandidatesAgainstFile(Configuration configuration, List<String> candidateRecordKeys,
       Path filePath) throws HoodieIndexException {
-    List<String> foundRecordKeys = new ArrayList<>();
+    SortedSet<String> foundRecordKeys = new TreeSet<>();
     try {
       // Load all rowKeys from the file, to double-confirm
       if (!candidateRecordKeys.isEmpty()) {
@@ -99,6 +108,7 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
    */
   public void addKey(String recordKey) {
     // check record key against bloom filter of current file & add to possible keys if needed
+    System.err.println(">>> Checking " + recordKey + " against bloom filter " + partitionPathFilePair);
     if (bloomFilter.mightContain(recordKey)) {
       if (logger.isDebugEnabled()) {
         logger.debug("Record key " + recordKey + " matches bloom filter in  " + partitionPathFilePair);
@@ -116,14 +126,46 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
       logger.debug("#The candidate row keys for " + partitionPathFilePair + " => " + candidateRecordKeys);
     }
 
-    HoodieDataFile dataFile = getLatestDataFile();
-    List<String> matchingKeys =
-        checkCandidatesAgainstFile(hoodieTable.getHadoopConf(), candidateRecordKeys, new Path(dataFile.getPath()));
+    Set<String> matchingKeys;
+    String baseInstantTime;
+
+    if (this.tableType == HoodieTableType.MERGE_ON_READ && hoodieTable.getIndex().canIndexLogFiles()) {
+      FileSlice mergedSlice = getLatestMergedFileSlice();
+      matchingKeys = new TreeSet<>();
+      baseInstantTime = mergedSlice.getBaseInstantTime();
+      try {
+        HoodieLogFormatReader reader = new HoodieLogFormatReader(hoodieTable.getMetaClient().getFs(),
+            // FIXME(vc): Bake this into the FileSlice itself?
+            mergedSlice.getLogFiles().sorted(HoodieLogFile.getLogFileComparator()).collect(Collectors.toList()),
+            // FIXME(vc): This is horrible
+            null, true, false, 1024 * 1024);
+        while (reader.hasNext()) {
+          // FIXME(vc): Can keep going till last block, since its single writer.. otherwise we will have issues.
+          // FIXME(vc): Best to limit the instant time using the current instant time?
+          HoodieLogBlock logBlock = reader.next();
+          if (logBlock instanceof HoodieAvroDataBlock) {
+            HoodieAvroDataBlock dataBlock =  (HoodieAvroDataBlock) logBlock;
+            Set<String> keysInBlock = dataBlock.getKeys();
+            keysInBlock.retainAll(candidateRecordKeys);
+            matchingKeys.addAll(keysInBlock);
+          }
+        }
+        reader.close();
+      } catch (IOException e) {
+        throw new HoodieIOException("Unable to scan file group for keys ", e);
+      }
+    } else {
+      HoodieDataFile dataFile = getLatestDataFile();
+      baseInstantTime = dataFile.getCommitTime();
+      matchingKeys = checkCandidatesAgainstFile(hoodieTable.getHadoopConf(), candidateRecordKeys,
+          new Path(dataFile.getPath()));
+    }
+
     logger.info(
         String.format("Total records (%d), bloom filter candidates (%d)/fp(%d), actual matches (%d)", totalKeysChecked,
             candidateRecordKeys.size(), candidateRecordKeys.size() - matchingKeys.size(), matchingKeys.size()));
     return new KeyLookupResult(partitionPathFilePair.getRight(), partitionPathFilePair.getLeft(),
-        dataFile.getCommitTime(), matchingKeys);
+        baseInstantTime, matchingKeys);
   }
 
   /**
@@ -133,11 +175,11 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
 
     private final String fileId;
     private final String baseInstantTime;
-    private final List<String> matchingRecordKeys;
+    private final Set<String> matchingRecordKeys;
     private final String partitionPath;
 
     KeyLookupResult(String fileId, String partitionPath, String baseInstantTime,
-        List<String> matchingRecordKeys) {
+        Set<String> matchingRecordKeys) {
       this.fileId = fileId;
       this.partitionPath = partitionPath;
       this.baseInstantTime = baseInstantTime;
@@ -156,7 +198,7 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
       return partitionPath;
     }
 
-    public List<String> getMatchingRecordKeys() {
+    public Set<String> getMatchingRecordKeys() {
       return matchingRecordKeys;
     }
   }

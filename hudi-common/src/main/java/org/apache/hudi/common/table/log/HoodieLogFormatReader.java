@@ -20,6 +20,7 @@ package org.apache.hudi.common.table.log;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import org.apache.avro.Schema;
 import org.apache.hadoop.fs.FileSystem;
@@ -31,29 +32,30 @@ import org.apache.log4j.Logger;
 
 public class HoodieLogFormatReader implements HoodieLogFormat.Reader {
 
-  private final List<HoodieLogFile> logFiles;
+  private final Iterator<HoodieLogFile> logFileIterator;
   // Readers for previously scanned log-files that are still open
   private final List<HoodieLogFileReader> prevReadersInOpenState;
   private HoodieLogFileReader currentReader;
   private final FileSystem fs;
   private final Schema readerSchema;
   private final boolean readBlocksLazily;
+  //FIXME(vc): Remove this and all the useless configs from the codebase
   private final boolean reverseLogReader;
   private int bufferSize;
 
   private static final Logger log = LogManager.getLogger(HoodieLogFormatReader.class);
 
-  HoodieLogFormatReader(FileSystem fs, List<HoodieLogFile> logFiles, Schema readerSchema, boolean readBlocksLazily,
+  public HoodieLogFormatReader(FileSystem fs, List<HoodieLogFile> logFiles, Schema readerSchema, boolean readBlocksLazily,
       boolean reverseLogReader, int bufferSize) throws IOException {
-    this.logFiles = logFiles;
+    this.logFileIterator = logFiles.iterator();
     this.fs = fs;
     this.readerSchema = readerSchema;
     this.readBlocksLazily = readBlocksLazily;
     this.reverseLogReader = reverseLogReader;
     this.bufferSize = bufferSize;
     this.prevReadersInOpenState = new ArrayList<>();
-    if (logFiles.size() > 0) {
-      HoodieLogFile nextLogFile = logFiles.remove(0);
+    if (logFileIterator.hasNext()) {
+      HoodieLogFile nextLogFile = logFileIterator.next();
       this.currentReader = new HoodieLogFileReader(fs, nextLogFile, readerSchema, bufferSize, readBlocksLazily, false);
     }
   }
@@ -79,14 +81,13 @@ public class HoodieLogFormatReader implements HoodieLogFormat.Reader {
 
   @Override
   public boolean hasNext() {
-
     if (currentReader == null) {
       return false;
     } else if (currentReader.hasNext()) {
       return true;
-    } else if (logFiles.size() > 0) {
+    } else if (logFileIterator.hasNext()) {
       try {
-        HoodieLogFile nextLogFile = logFiles.remove(0);
+        HoodieLogFile nextLogFile = logFileIterator.next();
         // First close previous reader only if readBlockLazily is true
         if (!readBlocksLazily) {
           this.currentReader.close();

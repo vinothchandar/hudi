@@ -151,6 +151,7 @@ public class HoodieBloomIndex<T extends HoodieRecordPayload> extends HoodieIndex
         loadInvolvedFiles(affectedPartitionPathList, jsc, hoodieTable);
     final Map<String, List<BloomIndexFileInfo>> partitionToFileInfo =
         fileInfoList.stream().collect(groupingBy(Tuple2::_1, mapping(Tuple2::_2, toList())));
+    System.err.println(">>> Ranges read back :" + partitionToFileInfo);
 
     // Step 3: Obtain a RDD, for each incoming record, that already exists, with the file id,
     // that contains it.
@@ -319,6 +320,10 @@ public class HoodieBloomIndex<T extends HoodieRecordPayload> extends HoodieIndex
     return partitionRecordKeyPairRDD.map(partitionRecordKeyPair -> {
       String recordKey = partitionRecordKeyPair._2();
       String partitionPath = partitionRecordKeyPair._1();
+
+      System.err.println(">>> Comparing " + recordKey + indexFileFilter.getMatchingFiles(partitionPath, recordKey).stream()
+          .map(matchingFile -> new Tuple2<>(matchingFile, new HoodieKey(recordKey, partitionPath)))
+          .collect(Collectors.toList()));
 
       return indexFileFilter.getMatchingFiles(partitionPath, recordKey).stream()
           .map(matchingFile -> new Tuple2<>(matchingFile, new HoodieKey(recordKey, partitionPath)))

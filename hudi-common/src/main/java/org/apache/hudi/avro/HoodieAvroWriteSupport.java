@@ -71,5 +71,6 @@ public class HoodieAvroWriteSupport extends AvroWriteSupport {
     } else {
       maxRecordKey = recordKey;
     }
+    System.err.println(">>>" + recordKey + " " + minRecordKey + " " + maxRecordKey);
   }
 }

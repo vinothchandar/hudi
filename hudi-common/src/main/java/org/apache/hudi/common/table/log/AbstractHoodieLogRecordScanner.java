@@ -121,20 +121,20 @@ public abstract class AbstractHoodieLogRecordScanner {
    * Scan Log files
    */
   public void scan() {
-    HoodieLogFormatReader logFormatReaderWrapper = null;
+    HoodieLogFormatReader logFormatReader = null;
     try {
       // iterate over the paths
-      logFormatReaderWrapper = new HoodieLogFormatReader(fs,
+      logFormatReader = new HoodieLogFormatReader(fs,
           logFilePaths.stream().map(logFile -> new HoodieLogFile(new Path(logFile))).collect(Collectors.toList()),
           readerSchema, readBlocksLazily, reverseReader, bufferSize);
       Set<HoodieLogFile> scannedLogFiles = new HashSet<>();
-      while (logFormatReaderWrapper.hasNext()) {
-        HoodieLogFile logFile = logFormatReaderWrapper.getLogFile();
+      while (logFormatReader.hasNext()) {
+        HoodieLogFile logFile = logFormatReader.getLogFile();
         log.info("Scanning log file " + logFile);
         scannedLogFiles.add(logFile);
         totalLogFiles.set(scannedLogFiles.size());
         // Use the HoodieLogFileReader to iterate through the blocks in the log file
-        HoodieLogBlock r = logFormatReaderWrapper.next();
+        HoodieLogBlock r = logFormatReader.next();
         totalLogBlocks.incrementAndGet();
         if (r.getBlockType() != CORRUPT_BLOCK
             && !HoodieTimeline.compareTimestamps(r.getLogBlockHeader().get(INSTANT_TIME), this.latestInstantTime,
@@ -243,8 +243,8 @@ public abstract class AbstractHoodieLogRecordScanner {
       throw new HoodieIOException("IOException when reading log file ");
     } finally {
       try {
-        if (null != logFormatReaderWrapper) {
-          logFormatReaderWrapper.close();
+        if (null != logFormatReader) {
+          logFormatReader.close();
         }
       } catch (IOException ioe) {
         // Eat exception as we do not want to mask the original exception that can happen

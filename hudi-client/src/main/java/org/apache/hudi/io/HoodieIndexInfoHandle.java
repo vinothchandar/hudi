@@ -34,7 +34,6 @@ import org.apache.hudi.common.util.ParquetUtils;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieIOException;
-import org.apache.hudi.exception.HoodieNotSupportedException;
 import org.apache.hudi.index.bloom.IndexInfo;
 import org.apache.hudi.table.HoodieTable;
 
@@ -53,10 +52,8 @@ public class HoodieIndexInfoHandle<T extends HoodieRecordPayload> extends Hoodie
     if (hoodieTable.getMetaClient().getTableType() == HoodieTableType.MERGE_ON_READ
         && hoodieTable.getIndex().canIndexLogFiles()) {
       readIndexInfoFromLatestLogBlock();
-    } else if (hoodieTable.getMetaClient().getTableType() == HoodieTableType.COPY_ON_WRITE) {
-      readIndexInfoFromDataFile();
     } else {
-      throw new HoodieNotSupportedException("Unknown table type");
+      readIndexInfoFromDataFile();
     }
   }
 
@@ -73,15 +70,17 @@ public class HoodieIndexInfoHandle<T extends HoodieRecordPayload> extends Hoodie
     // FIXME(vc): Should we have an IndexInfo that denotes empty?
     try {
       FileSlice mergedSlice = getLatestMergedFileSlice();
-        Map<BlockMetadataType, String> blockFooterMetadata = LogReaderUtils
-            .readLatestMetadataFromLogFiles(mergedSlice.getLogFiles(), hoodieTable.getMetaClient(),
-                HoodieAvroDataBlock::getLogBlockFooter);
-        if (blockFooterMetadata != null) {
-          // FIXME(VC): Need to handle the case where these headers are not present.
-          indexInfo.setBloomFilter(new BloomFilter(blockFooterMetadata.get(BlockMetadataType.BLOOM_FILTER)));
-          indexInfo.setMinMaxKeyRange(Option.of(Pair.of(blockFooterMetadata.get(BlockMetadataType.MIN_RECORD_KEY),
-              blockFooterMetadata.get(BlockMetadataType.MAX_RECORD_KEY))));
-        } else {
+      Map<BlockMetadataType, String> blockFooterMetadata = LogReaderUtils
+          .readLatestMetadataFromLogFiles(mergedSlice.getLogFiles(), hoodieTable.getMetaClient(),
+              HoodieAvroDataBlock::getLogBlockFooter);
+      if (blockFooterMetadata != null) {
+        // FIXME(VC): Need to handle the case where these headers are not present.
+        indexInfo.setBloomFilter(
+            new BloomFilter(blockFooterMetadata.get(BlockMetadataType.BLOOM_FILTER)));
+        indexInfo.setMinMaxKeyRange(
+            Option.of(Pair.of(blockFooterMetadata.get(BlockMetadataType.MIN_RECORD_KEY),
+                blockFooterMetadata.get(BlockMetadataType.MAX_RECORD_KEY))));
+      } else {
         readIndexInfoFromDataFile();
       }
     } catch (IOException ioe) {

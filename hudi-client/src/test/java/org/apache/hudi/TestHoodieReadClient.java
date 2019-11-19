@@ -85,15 +85,15 @@ public class TestHoodieReadClient extends TestHoodieClientBase {
     try (HoodieWriteClient writeClient = getHoodieWriteClient(config);
         HoodieReadClient readClient = getHoodieReadClient(config.getBasePath());) {
       String newCommitTime = writeClient.startCommit();
-      List<HoodieRecord> records = dataGen.generateInserts(newCommitTime, 100);
+      List<HoodieRecord> records = dataGen.generateInserts(newCommitTime, 10);
       JavaRDD<HoodieRecord> recordsRDD = jsc.parallelize(records, 1);
 
       JavaRDD<HoodieRecord> filteredRDD = readClient.filterExists(recordsRDD);
 
       // Should not find any files
-      assertTrue(filteredRDD.collect().size() == 100);
+      assertTrue(filteredRDD.collect().size() == 10);
 
-      JavaRDD<HoodieRecord> smallRecordsRDD = jsc.parallelize(records.subList(0, 75), 1);
+      JavaRDD<HoodieRecord> smallRecordsRDD = jsc.parallelize(records.subList(0, 7), 1);
       // We create three parquet file, each having one record. (3 different partitions)
       List<WriteStatus> statuses = writeFn.apply(writeClient, smallRecordsRDD, newCommitTime).collect();
       // Verify there are no errors
@@ -103,7 +103,7 @@ public class TestHoodieReadClient extends TestHoodieClientBase {
         filteredRDD = anotherReadClient.filterExists(recordsRDD);
         List<HoodieRecord> result = filteredRDD.collect();
         // Check results
-        Assert.assertEquals(25, result.size());
+        Assert.assertEquals(3, result.size());
       }
     }
   }

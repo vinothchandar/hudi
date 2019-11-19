@@ -28,6 +28,7 @@ import static org.junit.Assert.fail;
 import com.google.common.collect.Lists;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -260,8 +261,8 @@ public class TestHoodieBloomIndex extends HoodieClientTestHarness {
     List<String> uuids =
         Arrays.asList(record1.getRecordKey(), record2.getRecordKey(), record3.getRecordKey(), record4.getRecordKey());
 
-    List<String> results = HoodieKeyLookupHandle.checkCandidatesAgainstFile(jsc.hadoopConfiguration(), uuids,
-        new Path(basePath + "/2016/01/31/" + filename));
+    List<String> results = new ArrayList<>(HoodieKeyLookupHandle.checkCandidatesAgainstFile(
+        jsc.hadoopConfiguration(), uuids, new Path(basePath + "/2016/01/31/" + filename)));
     assertEquals(results.size(), 2);
     assertTrue(results.get(0).equals("1eb5b87a-1feh-4edd-87b4-6ec96dc405a0")
         || results.get(1).equals("1eb5b87a-1feh-4edd-87b4-6ec96dc405a0"));

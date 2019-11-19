@@ -154,18 +154,18 @@ public class ParquetUtils {
   }
 
   public static Map<String, String> readAllIndexInfo(Configuration configuration, Path parquetFilePath) {
-   return readParquetFooter(configuration, parquetFilePath,
-            HoodieAvroWriteSupport.HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY,
-            HoodieAvroWriteSupport.OLD_HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY,
-            HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER,
-            HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER);
+    return readParquetFooter(configuration, parquetFilePath,
+        HoodieAvroWriteSupport.HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY,
+        HoodieAvroWriteSupport.OLD_HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY,
+        HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER,
+        HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER);
   }
 
   public static Option<Pair<String, String>> readMinMaxRecordKeysFromFooter(Map<String, String> footerVals) {
-    if (footerVals.containsKey(HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER) &&
-        footerVals.containsKey(HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER)) {
+    if (footerVals.containsKey(HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER)
+        && footerVals.containsKey(HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER)) {
       return Option.of(Pair.of(footerVals.get(HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER),
-          footerVals.get(HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER)));
+          footerVals.get(HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER)));
     } else {
       return Option.empty();
     }
