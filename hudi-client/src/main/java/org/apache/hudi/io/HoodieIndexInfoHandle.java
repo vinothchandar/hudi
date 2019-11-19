@@ -46,13 +46,15 @@ public class HoodieIndexInfoHandle<T extends HoodieRecordPayload> extends Hoodie
 
   private IndexInfo indexInfo;
 
-  public HoodieIndexInfoHandle(HoodieWriteConfig config, HoodieTable<T> hoodieTable, Pair<String, String> partitionPathFilePair) {
+  public HoodieIndexInfoHandle(HoodieWriteConfig config, HoodieTable<T> hoodieTable,
+      Pair<String, String> partitionPathFilePair) {
     super(config, null, hoodieTable, partitionPathFilePair);
     this.indexInfo = new IndexInfo();
-    if (hoodieTable.getMetaClient().getTableType() == HoodieTableType.COPY_ON_WRITE) {
-      readIndexInfoFromDataFile();
-    } else if (hoodieTable.getMetaClient().getTableType() == HoodieTableType.MERGE_ON_READ) {
+    if (hoodieTable.getMetaClient().getTableType() == HoodieTableType.MERGE_ON_READ
+        && hoodieTable.getIndex().canIndexLogFiles()) {
       readIndexInfoFromLatestLogBlock();
+    } else if (hoodieTable.getMetaClient().getTableType() == HoodieTableType.COPY_ON_WRITE) {
+      readIndexInfoFromDataFile();
     } else {
       throw new HoodieNotSupportedException("Unknown table type");
     }

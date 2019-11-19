@@ -65,7 +65,7 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
   private ThreadLocal<BinaryEncoder> encoderCache = new ThreadLocal<>();
   private ThreadLocal<BinaryDecoder> decoderCache = new ThreadLocal<>();
 
-  private HoodieAvroDataBlock(@Nonnull List<IndexedRecord> records, @Nonnull Map<BlockMetadataType, String> header,
+  public HoodieAvroDataBlock(@Nonnull List<IndexedRecord> records, @Nonnull Map<BlockMetadataType, String> header,
       @Nonnull Map<BlockMetadataType, String> footer, @Nonnull Set<String> keys) {
     super(header, footer, Option.empty(), Option.empty(), null, false);
     this.records = records;
@@ -107,7 +107,8 @@ public class HoodieAvroDataBlock extends HoodieLogBlock {
 
     Schema schema = Schema.parse(super.getLogBlockHeader().get(BlockMetadataType.SCHEMA));
     GenericDatumWriter<IndexedRecord> writer = new GenericDatumWriter<>(schema);
-    DataOutputStream output = new DataOutputStream(new ByteArrayOutputStream());
+    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+    DataOutputStream output = new DataOutputStream(baos);
 
     // 1. Write out the log block version
     output.writeInt(HoodieAvroDataBlockVersion.CURRENT_VERSION);

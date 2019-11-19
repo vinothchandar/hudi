@@ -56,6 +56,9 @@ public class HoodieIndexConfig extends DefaultHoodieConfig {
   public static final String BLOOM_INDEX_KEYS_PER_BUCKET_PROP = "hoodie.bloom.index.keys.per.bucket";
   public static final String DEFAULT_BLOOM_INDEX_KEYS_PER_BUCKET = "10000000";
 
+  public static final String BLOOM_INDEX_ENABLE_LOG_INDEXING_PROP = "hoodie.bloom.index.enable.log.indexing";
+  public static final String DEFAULT_BLOOM_INDEX_ENABLE_LOG_INDEXING = "true";
+
   // ***** HBase Index Configs *****
   public static final String HBASE_ZKQUORUM_PROP = "hoodie.index.hbase.zkquorum";
   public static final String HBASE_ZKPORT_PROP = "hoodie.index.hbase.zkport";
@@ -191,6 +194,8 @@ public class HoodieIndexConfig extends DefaultHoodieConfig {
           BLOOM_INDEX_BUCKETIZED_CHECKING_PROP, DEFAULT_BLOOM_INDEX_BUCKETIZED_CHECKING);
       setDefaultOnCondition(props, !props.containsKey(BLOOM_INDEX_KEYS_PER_BUCKET_PROP),
           BLOOM_INDEX_KEYS_PER_BUCKET_PROP, DEFAULT_BLOOM_INDEX_KEYS_PER_BUCKET);
+      setDefaultOnCondition(props, !props.containsKey(BLOOM_INDEX_ENABLE_LOG_INDEXING_PROP),
+          BLOOM_INDEX_ENABLE_LOG_INDEXING_PROP, DEFAULT_BLOOM_INDEX_ENABLE_LOG_INDEXING);
       // Throws IllegalArgumentException if the value set is not a known Hoodie Index Type
       HoodieIndex.IndexType.valueOf(props.getProperty(INDEX_TYPE_PROP));
       return config;

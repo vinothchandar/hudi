@@ -289,7 +289,7 @@ public class HoodieBloomIndex<T extends HoodieRecordPayload> extends HoodieIndex
    */
   @Override
   public boolean canIndexLogFiles() {
-    return false;
+    return config.getBloomIndexEnableLogIndexing();
   }
 
   /**

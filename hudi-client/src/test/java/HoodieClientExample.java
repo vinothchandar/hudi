@@ -54,7 +54,7 @@ public class HoodieClientExample {
   @Parameter(names = {"--table-name", "-n"}, description = "table name for Hoodie sample table")
   private String tableName = "hoodie_rt";
   @Parameter(names = {"--table-type", "-t"}, description = "One of COPY_ON_WRITE or MERGE_ON_READ")
-  private String tableType = HoodieTableType.COPY_ON_WRITE.name();
+  private String tableType = HoodieTableType.MERGE_ON_READ.name();
 
   public static void main(String[] args) throws Exception {
     HoodieClientExample cli = new HoodieClientExample();

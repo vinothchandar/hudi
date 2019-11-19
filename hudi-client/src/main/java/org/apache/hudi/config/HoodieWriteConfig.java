@@ -391,6 +391,10 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
     return Integer.parseInt(props.getProperty(HoodieIndexConfig.BLOOM_INDEX_KEYS_PER_BUCKET_PROP));
   }
 
+  public boolean getBloomIndexEnableLogIndexing() {
+    return Boolean.parseBoolean(props.getProperty(HoodieIndexConfig.BLOOM_INDEX_ENABLE_LOG_INDEXING_PROP));
+  }
+
   public StorageLevel getBloomIndexInputStorageLevel() {
     return StorageLevel.fromString(props.getProperty(HoodieIndexConfig.BLOOM_INDEX_INPUT_STORAGE_LEVEL));
   }

@@ -59,8 +59,13 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
     this.candidateRecordKeys = new ArrayList<>();
     this.totalKeysChecked = 0;
     HoodieTimer timer = new HoodieTimer().startTimer();
-    this.bloomFilter = ParquetUtils.readBloomFilterFromParquetMetadata(hoodieTable.getHadoopConf(),
-        new Path(getLatestDataFile().getPath()));
+    if (tableType.equals(HoodieTableType.MERGE_ON_READ) && hoodieTable.getIndex().canIndexLogFiles()) {
+      HoodieIndexInfoHandle<T> indexInfoHandle = new HoodieIndexInfoHandle<>(config, hoodieTable, partitionPathFilePair);
+      this.bloomFilter = indexInfoHandle.getIndexInfo().getBloomFilter();
+    } else {
+      this.bloomFilter = ParquetUtils.readBloomFilterFromParquetMetadata(hoodieTable.getHadoopConf(),
+          new Path(getLatestDataFile().getPath()));
+    }
     logger.info(String.format("Read bloom filter from %s in %d ms", partitionPathFilePair, timer.endTimer()));
   }
 
@@ -131,7 +136,7 @@ public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends Hoodie
     private final List<String> matchingRecordKeys;
     private final String partitionPath;
 
-    public KeyLookupResult(String fileId, String partitionPath, String baseInstantTime,
+    KeyLookupResult(String fileId, String partitionPath, String baseInstantTime,
         List<String> matchingRecordKeys) {
       this.fileId = fileId;
       this.partitionPath = partitionPath;

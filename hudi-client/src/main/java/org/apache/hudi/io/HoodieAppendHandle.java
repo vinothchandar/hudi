@@ -49,6 +49,7 @@ import org.apache.hudi.common.table.log.block.HoodieLogBlock.BlockMetadataType;
 import org.apache.hudi.common.util.FSUtils;
 import org.apache.hudi.common.util.HoodieAvroUtils;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.exception.HoodieAppendException;
 import org.apache.hudi.exception.HoodieUpsertException;
@@ -96,7 +97,9 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
   // Max block size to limit to for a log block
   private int maxBlockSize = config.getLogFileDataBlockMaxSize();
   // Header metadata for a log block
-  private Map<BlockMetadataType, String> header = Maps.newHashMap();
+  private Map<BlockMetadataType, String> headers = Maps.newHashMap();
+  // Footer metadata for a log block
+  private Map<BlockMetadataType, String> footers = Maps.newHashMap();
   // Total number of new records inserted into the delta file
   private long insertRecordsWritten = 0;
   // Cumulative indexing information i.e for all the records from data file to previous logs/blocks
@@ -114,16 +117,17 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
     this(config, commitTime, hoodieTable, fileId, null);
   }
 
-  private void initIndexInfo(RealtimeView rtView) {
-
-  }
-
   private void init(HoodieRecord record) {
     if (doInit) {
       this.partitionPath = record.getPartitionPath();
       // extract some information from the first record
       RealtimeView rtView = hoodieTable.getRTFileSystemView();
       Option<FileSlice> fileSlice = rtView.getLatestFileSlice(partitionPath, fileId);
+
+      // initialize the index info.
+      HoodieIndexInfoHandle indexInfoHandle = new HoodieIndexInfoHandle<T>(config, hoodieTable, Pair.of(partitionPath, fileId));
+      this.indexInfo = indexInfoHandle.getIndexInfo();
+
       // Set the base commit time as the current commitTime for new inserts into log files
       String baseInstantTime = instantTime;
       if (fileSlice.isPresent()) {
@@ -139,7 +143,9 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
       writeStatus.getStat().setPartitionPath(partitionPath);
       writeStatus.getStat().setFileId(fileId);
       averageRecordSize = SizeEstimator.estimate(record);
-      initIndexInfo();
+
+      headers.put(BlockMetadataType.INSTANT_TIME, instantTime);
+      headers.put(BlockMetadataType.SCHEMA, writerSchema.toString());
 
       try {
         this.writer = createLogWriter(fileSlice, baseInstantTime);
@@ -197,28 +203,30 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
 
   // TODO (NA) - Perform a writerSchema check of current input record with the last writerSchema on log file
   // to make sure we don't append records with older (shorter) writerSchema than already appended
-  public void doAppends() {
+  public void handleAppends() {
     while (recordItr.hasNext()) {
       HoodieRecord record = recordItr.next();
       init(record);
       flushToDiskIfRequired(record);
       writeToBuffer(record);
     }
-    doAppends(header);
+    doAppends();
     estimatedNumberOfBytesWritten += averageRecordSize * numberOfRecords;
   }
 
-  private void doAppends(Map<BlockMetadataType, String> header) {
+  private void doAppends() {
     try {
-      header.put(BlockMetadataType.INSTANT_TIME, instantTime);
-      header.put(BlockMetadataType.SCHEMA, writerSchema.toString());
+      footers.put(BlockMetadataType.BLOOM_FILTER, indexInfo.getBloomFilter().serializeToString());
+      footers.put(BlockMetadataType.MIN_RECORD_KEY, indexInfo.getMinMaxKeyRange().get().getLeft());
+      footers.put(BlockMetadataType.MAX_RECORD_KEY, indexInfo.getMinMaxKeyRange().get().getRight());
+
       if (recordList.size() > 0) {
-        writer = writer.appendBlock(new HoodieAvroDataBlock(recordList, header));
+        writer = writer.appendBlock(new HoodieAvroDataBlock(recordList, headers, footers, recordKeys));
         recordList.clear();
         recordKeys.clear();
       }
       if (keysToDelete.size() > 0) {
-        writer = writer.appendBlock(new HoodieDeleteBlock(keysToDelete.stream().toArray(HoodieKey[]::new), header));
+        writer = writer.appendBlock(new HoodieDeleteBlock(keysToDelete.stream().toArray(HoodieKey[]::new), headers));
         keysToDelete.clear();
       }
     } catch (Exception e) {
@@ -251,7 +259,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
   public WriteStatus close() {
     try {
       // flush any remaining records to disk
-      doAppends(header);
+      doAppends();
       long sizeInBytes = writer.getCurrentSize();
       if (writer != null) {
         writer.close();
@@ -306,6 +314,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
     if (indexedRecord.isPresent()) {
       recordList.add(indexedRecord.get());
       recordKeys.add(record.getRecordKey());
+      indexInfo.addKey(record.getRecordKey());
     } else {
       keysToDelete.add(record.getKey());
     }
@@ -322,7 +331,7 @@ public class HoodieAppendHandle<T extends HoodieRecordPayload> extends HoodieWri
       // avg of new and old
       logger.info("AvgRecordSize => " + averageRecordSize);
       averageRecordSize = (averageRecordSize + SizeEstimator.estimate(record)) / 2;
-      doAppends(header);
+      doAppends();
       estimatedNumberOfBytesWritten += averageRecordSize * numberOfRecords;
       numberOfRecords = 0;
     }
