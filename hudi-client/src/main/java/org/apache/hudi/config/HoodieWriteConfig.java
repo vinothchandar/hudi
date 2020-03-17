@@ -434,6 +434,10 @@ public class HoodieWriteConfig extends DefaultHoodieConfig {
     return Boolean.parseBoolean(props.getProperty(HoodieIndexConfig.BLOOM_INDEX_UPDATE_PARTITION_PATH));
   }
 
+  public int getBloomIndexV2Parallelism() {
+    return Integer.parseInt(props.getProperty(HoodieIndexConfig.BLOOM_INDEX_V2_PARALLELISM_PROP));
+  }
+
   /**
    * storage properties.
    */

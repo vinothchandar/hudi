@@ -121,11 +121,9 @@ public class ParquetUtils {
     return readMetadata(configuration, parquetFilePath).getFileMetaData().getSchema();
   }
 
-  private static Map<String, String> readParquetFooter(Configuration configuration, boolean required,
-                                                       Path parquetFilePath, String... footerNames) {
+  private static Map<String, String> getParquetFooter(Map<String, String> metadata, boolean required,
+      Path parquetFilePath, String... footerNames) {
     Map<String, String> footerVals = new HashMap<>();
-    ParquetMetadata footer = readMetadata(configuration, parquetFilePath);
-    Map<String, String> metadata = footer.getFileMetaData().getKeyValueMetaData();
     for (String footerName : footerNames) {
       if (metadata.containsKey(footerName)) {
         footerVals.put(footerName, metadata.get(footerName));
@@ -141,12 +139,21 @@ public class ParquetUtils {
     return new AvroSchemaConverter().convert(readSchema(configuration, parquetFilePath));
   }
 
+  public static Map<String, String> readAllIndexMetadata(Configuration configuration, Path parquetFilePath) {
+    ParquetMetadata footer = readMetadata(configuration, parquetFilePath);
+    return footer.getFileMetaData().getKeyValueMetaData();
+  }
+
+
+  public static BloomFilter readBloomFilterFromParquetMetadata(Configuration configuration, Path parquetFilePath) {
+    return bloomFilterFromParquetMetadata(readAllIndexMetadata(configuration, parquetFilePath), parquetFilePath);
+  }
   /**
    * Read out the bloom filter from the parquet file meta data.
    */
-  public static BloomFilter readBloomFilterFromParquetMetadata(Configuration configuration, Path parquetFilePath) {
+  public static BloomFilter bloomFilterFromParquetMetadata(Map<String, String> metadata, Path parquetFilePath) {
     Map<String, String> footerVals =
-        readParquetFooter(configuration, false, parquetFilePath,
+        getParquetFooter(metadata, false, parquetFilePath,
             HoodieAvroWriteSupport.HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY,
             HoodieAvroWriteSupport.OLD_HOODIE_AVRO_BLOOM_FILTER_METADATA_KEY,
             HoodieAvroWriteSupport.HOODIE_BLOOM_FILTER_TYPE_CODE);
@@ -168,7 +175,11 @@ public class ParquetUtils {
   }
 
   public static String[] readMinMaxRecordKeys(Configuration configuration, Path parquetFilePath) {
-    Map<String, String> minMaxKeys = readParquetFooter(configuration, true, parquetFilePath,
+    return minMaxRecordKeys(readAllIndexMetadata(configuration, parquetFilePath), parquetFilePath);
+  }
+
+  public static String[] minMaxRecordKeys(Map<String, String> metadata, Path parquetFilePath) {
+    Map<String, String> minMaxKeys = getParquetFooter(metadata, true, parquetFilePath,
         HoodieAvroWriteSupport.HOODIE_MIN_RECORD_KEY_FOOTER, HoodieAvroWriteSupport.HOODIE_MAX_RECORD_KEY_FOOTER);
     if (minMaxKeys.size() != 2) {
       throw new HoodieException(

@@ -34,7 +34,7 @@ import org.apache.hudi.common.util.Option;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieIndexConfig;
 import org.apache.hudi.config.HoodieWriteConfig;
-import org.apache.hudi.io.HoodieKeyLookupHandle;
+import org.apache.hudi.io.HoodieKeyAndBloomLookupHandle;
 import org.apache.hudi.table.HoodieTable;
 
 import org.apache.avro.Schema;
@@ -265,7 +265,8 @@ public class TestHoodieBloomIndex extends HoodieClientTestHarness {
     List<String> uuids =
         Arrays.asList(record1.getRecordKey(), record2.getRecordKey(), record3.getRecordKey(), record4.getRecordKey());
 
-    List<String> results = HoodieKeyLookupHandle.checkCandidatesAgainstFile(jsc.hadoopConfiguration(), uuids,
+    List<String> results = HoodieKeyAndBloomLookupHandle
+        .checkCandidatesAgainstFile(jsc.hadoopConfiguration(), uuids,
         new Path(basePath + "/2016/01/31/" + filename));
     assertEquals(results.size(), 2);
     assertTrue(results.get(0).equals("1eb5b87a-1feh-4edd-87b4-6ec96dc405a0")
@@ -327,7 +328,7 @@ public class TestHoodieBloomIndex extends HoodieClientTestHarness {
     HoodieTable table = HoodieTable.getHoodieTable(metaClient, config, jsc);
 
     // Let's tag
-    HoodieBloomIndex bloomIndex = new HoodieBloomIndex(config);
+    HoodieBloomIndexV2 bloomIndex = new HoodieBloomIndexV2(config);
     JavaRDD<HoodieRecord> taggedRecordRDD = bloomIndex.tagLocation(recordRDD, jsc, table);
 
     // Should not find any files

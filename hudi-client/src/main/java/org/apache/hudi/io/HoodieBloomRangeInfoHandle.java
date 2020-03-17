@@ -18,35 +18,42 @@
 
 package org.apache.hudi.io;
 
-import java.util.Set;
+import java.util.Map;
 import org.apache.hadoop.fs.Path;
-import org.apache.hudi.common.model.HoodieBaseFile;
+import org.apache.hudi.common.bloom.filter.BloomFilter;
 import org.apache.hudi.common.model.HoodieRecordPayload;
 import org.apache.hudi.common.util.ParquetUtils;
 import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.config.HoodieWriteConfig;
+import org.apache.hudi.exception.MetadataNotFoundException;
+import org.apache.hudi.index.bloom.BloomIndexFileInfo;
 import org.apache.hudi.table.HoodieTable;
 
-public class HoodieKeyLookupHandle<T extends HoodieRecordPayload> extends HoodieReadHandle<T> {
+public class HoodieBloomRangeInfoHandle<T extends HoodieRecordPayload> extends HoodieReadHandle<T> {
 
-  private Set<String> recordKeys;
+  private BloomIndexFileInfo rangeInfo;
 
-  private String baseInstantTime;
+  private BloomFilter bloomFilter;
 
-  public HoodieKeyLookupHandle(HoodieWriteConfig config, HoodieTable<T> hoodieTable,
+  public HoodieBloomRangeInfoHandle(HoodieWriteConfig config, HoodieTable<T> hoodieTable,
       Pair<String, String> partitionPathFilePair) {
     super(config, null, hoodieTable, partitionPathFilePair);
-    final HoodieBaseFile baseFile = getLatestDataFile();
-    this.baseInstantTime = baseFile.getCommitTime();
-    this.recordKeys = ParquetUtils.readRowKeysFromParquet(hoodieTable.getHadoopConf(),
-        new Path(baseFile.getPath()));
+    Path dataFilePath = new Path(getLatestDataFile().getPath());
+    Map<String, String> metadata = ParquetUtils.readAllIndexMetadata(hoodieTable.getHadoopConf(), dataFilePath);
+    this.bloomFilter = ParquetUtils.bloomFilterFromParquetMetadata(metadata, dataFilePath);
+    try {
+      String[] minMaxKeys = ParquetUtils.minMaxRecordKeys(metadata, dataFilePath);
+      this.rangeInfo = new BloomIndexFileInfo(partitionPathFilePair.getRight(), minMaxKeys[0], minMaxKeys[1]);
+    } catch (MetadataNotFoundException me) {
+      this.rangeInfo = new BloomIndexFileInfo(partitionPathFilePair.getRight());
+    }
   }
 
-  public boolean containsKey(String key) {
-    return recordKeys.contains(key);
+  public BloomIndexFileInfo getRangeInfo() {
+    return rangeInfo;
   }
 
-  public String getBaseInstantTime() {
-    return baseInstantTime;
+  public BloomFilter getBloomFilter() {
+    return bloomFilter;
   }
 }
