@@ -144,10 +144,10 @@ public class ParquetUtils {
     return footer.getFileMetaData().getKeyValueMetaData();
   }
 
-
   public static BloomFilter readBloomFilterFromParquetMetadata(Configuration configuration, Path parquetFilePath) {
     return bloomFilterFromParquetMetadata(readAllIndexMetadata(configuration, parquetFilePath), parquetFilePath);
   }
+
   /**
    * Read out the bloom filter from the parquet file meta data.
    */

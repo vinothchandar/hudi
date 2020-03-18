@@ -58,7 +58,7 @@ public abstract class HoodieIndex<T extends HoodieRecordPayload> implements Seri
       case INMEMORY:
         return new InMemoryHashIndex<>(config);
       case BLOOM:
-        return new HoodieBloomIndexV2<>(config);
+        return new HoodieBloomIndex<>(config);
       case GLOBAL_BLOOM:
         return new HoodieGlobalBloomIndex<>(config);
       case BLOOM_V2:

@@ -18,8 +18,6 @@
 
 package org.apache.hudi.index.bloom;
 
-import static java.util.stream.Collectors.groupingBy;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -99,7 +97,7 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
     }
 
     private void populateRangeAndBloomFilters() throws IOException {
-      this.fileIDToBloomFilter = new ExternalSpillableMap<>(100000000L,
+      this.fileIDToBloomFilter = new ExternalSpillableMap<>(1000000000L,
           config.getSpillableMapBasePath(), new DefaultSizeEstimator<>(), new DefaultSizeEstimator<>());
       List<BloomIndexFileInfo> fileInfos = fileIDs.stream().map(fileID -> {
         HoodieBloomRangeInfoHandle<T> indexMetadataHandle = new HoodieBloomRangeInfoHandle<T>(
@@ -210,14 +208,11 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
         .map(Option::get);
   }
 
-
   @Override
   public JavaPairRDD<HoodieKey, Option<Pair<String, String>>> fetchRecordLocation(JavaRDD<HoodieKey> hoodieKeys,
       JavaSparkContext jsc, HoodieTable<T> hoodieTable) {
     throw new UnsupportedOperationException("Not yet implemented");
   }
-
-
 
   @Override
   public boolean rollbackCommit(String commitTime) {
