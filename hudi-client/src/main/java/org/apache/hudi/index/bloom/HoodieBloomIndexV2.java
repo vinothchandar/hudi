@@ -18,14 +18,6 @@
 
 package org.apache.hudi.index.bloom;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.client.utils.LazyIterableIterator;
 import org.apache.hudi.common.bloom.filter.BloomFilter;
@@ -51,6 +43,15 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 /**
  * Simplified re-implementation of {@link HoodieBloomIndex} that does not rely on caching, or
  * incurs the overhead of auto-tuning parallelism.
@@ -74,6 +75,12 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
     private Set<String> fileIDs;
     private IndexFileFilter indexFileFilter;
     private ExternalSpillableMap<String, BloomFilter> fileIDToBloomFilter;
+    private long totalTimeNs;
+    private long totalCount;
+    private long totalMetadataReadTimeNs;
+    private long totalRangeCheckTimeNs;
+    private long totalBloomCheckTimeNs;
+    private long totalMatches;
 
     public LazyRangeBloomChecker(Iterator<HoodieRecord<T>> in, final HoodieTable<T> table) {
       super(in);
@@ -118,12 +125,18 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
     }
 
     @Override
-    protected void start() {}
+    protected void start() {
+      totalCount = 0;
+      totalTimeNs = 0;
+    }
 
     @Override
     protected List<Pair<HoodieRecord<T>, String>> computeNext() {
+
+      final long startNs = System.nanoTime();
       List<Pair<HoodieRecord<T>, String>> candidates = new ArrayList<>();
       if (inputItr.hasNext()) {
+        long timerStart = System.nanoTime();
         HoodieRecord<T> record = inputItr.next();
         try {
           initIfNeeded(record.getPartitionPath());
@@ -132,25 +145,39 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
               "Error reading index metadata for " + record.getPartitionPath(), e);
         }
 
-        indexFileFilter
-            .getMatchingFilesAndPartition(record.getPartitionPath(), record.getRecordKey())
-            .forEach(partitionFileIdPair -> {
-              BloomFilter filter = fileIDToBloomFilter.get(partitionFileIdPair.getRight());
-              if (filter.mightContain(record.getRecordKey())) {
-                candidates.add(Pair.of(record, partitionFileIdPair.getRight()));
-              }
-            });
+        totalMetadataReadTimeNs += System.nanoTime() - timerStart;
+        timerStart = System.nanoTime();
+
+        Set<Pair<String, String>> matchingFiles = indexFileFilter
+            .getMatchingFilesAndPartition(record.getPartitionPath(), record.getRecordKey());
+        totalRangeCheckTimeNs += System.nanoTime() - timerStart;
+        timerStart = System.nanoTime();
+
+        matchingFiles.forEach(partitionFileIdPair -> {
+          BloomFilter filter = fileIDToBloomFilter.get(partitionFileIdPair.getRight());
+          if (filter.mightContain(record.getRecordKey())) {
+            candidates.add(Pair.of(record, partitionFileIdPair.getRight()));
+          }
+        });
+        totalBloomCheckTimeNs += System.nanoTime() - timerStart;
 
         if (candidates.size() == 0) {
           candidates.add(Pair.of(record, ""));
+        } else {
+          totalMatches++;
         }
       }
+
+      totalTimeNs += System.nanoTime() - startNs;
+      totalCount++;
 
       return candidates;
     }
 
     @Override
     protected void end() {
+      System.err.format("LazyRangeBloomChecker: %d, %d, %d, %d, %d, %d \n",
+          totalCount, totalMatches, totalTimeNs, totalMetadataReadTimeNs, totalRangeCheckTimeNs, totalBloomCheckTimeNs);
       cleanup();
     }
   }
@@ -159,6 +186,9 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
 
     private HoodieKeyLookupHandle<T> currHandle = null;
     private HoodieTable<T> table;
+    private long totalTimeNs;
+    private long totalCount;
+    private long totalReadTimeNs;
 
     public LazyKeyChecker(Iterator<Pair<HoodieRecord<T>, String>> in, HoodieTable<T> table) {
       super(in);
@@ -166,7 +196,10 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
     }
 
     @Override
-    protected void start() {}
+    protected void start() {
+      totalCount = 0;
+      totalTimeNs = 0;
+    }
 
     @Override
     protected Option<HoodieRecord<T>> computeNext() {
@@ -174,24 +207,35 @@ public class HoodieBloomIndexV2<T extends HoodieRecordPayload> extends HoodieInd
         return Option.empty();
       }
 
+      final long startNs = System.nanoTime();
       final Pair<HoodieRecord<T>, String> recordAndFileId = inputItr.next();
       final Option<String> fileIdOpt = recordAndFileId.getRight().length() > 0
           ? Option.of(recordAndFileId.getRight())
           : Option.empty();
       final HoodieRecord<T> record = recordAndFileId.getLeft();
-      return fileIdOpt.map(fileId -> {
+      Option<HoodieRecord<T>> ret = fileIdOpt.map(fileId -> {
+        long timerStart = System.nanoTime();
         if (currHandle == null || !currHandle.getFileId().equals(fileId)) {
           currHandle = new HoodieKeyLookupHandle<>(config, table, Pair.of(record.getPartitionPath(), fileId));
         }
+        totalReadTimeNs += System.nanoTime() - timerStart;
         Option<HoodieRecordLocation> location = currHandle.containsKey(record.getRecordKey())
             ? Option.of(new HoodieRecordLocation(currHandle.getBaseInstantTime(), currHandle.getFileId()))
             : Option.empty();
         return Option.of(getTaggedRecord(record, location));
       }).orElse(Option.of(record));
+
+      totalTimeNs += System.nanoTime() - startNs;
+      totalCount++;
+
+      return ret;
+
     }
 
     @Override
-    protected void end() {}
+    protected void end() {
+      System.err.println("LazyKeyChecker: " + totalTimeNs + "," + totalCount + "," + totalReadTimeNs);
+    }
   }
 
   @Override
