@@ -31,6 +31,8 @@ import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.index.HoodieIndexUtils;
 import org.apache.hudi.table.HoodieTable;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaSparkContext;
@@ -50,6 +52,8 @@ import scala.Tuple2;
  * file in it.
  */
 public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends HoodieBloomIndex<T> {
+
+  private static final Logger LOG = LogManager.getLogger(HoodieGlobalBloomIndex.class);
 
   public HoodieGlobalBloomIndex(HoodieWriteConfig config) {
     super(config);
@@ -115,9 +119,9 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
         keyLocationPairRDD.mapToPair(p -> new Tuple2<>(p._1.getRecordKey(), new Tuple2<>(p._2, p._1)));
 
     // Here as the recordRDD might have more data than rowKeyRDD (some rowKeys' fileId is null), so we do left outer join.
-    return incomingRowKeyRecordPairRDD.leftOuterJoin(existingRecordKeyToRecordLocationHoodieKeyMap).values().flatMap(record -> {
-      final HoodieRecord<T> hoodieRecord = record._1;
-      final Optional<Tuple2<HoodieRecordLocation, HoodieKey>> recordLocationHoodieKeyPair = record._2;
+    return incomingRowKeyRecordPairRDD.leftOuterJoin(existingRecordKeyToRecordLocationHoodieKeyMap).values().flatMap(joinedVal -> {
+      final HoodieRecord<T> hoodieRecord = joinedVal._1;
+      final Optional<Tuple2<HoodieRecordLocation, HoodieKey>> recordLocationHoodieKeyPair = joinedVal._2;
       if (recordLocationHoodieKeyPair.isPresent()) {
         // Record key matched to file
         if (config.getBloomIndexUpdatePartitionPath()
@@ -127,8 +131,20 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
               new EmptyHoodieRecordPayload());
           // Tag the incoming record for inserting to the new partition
           HoodieRecord<T> taggedRecord = HoodieIndexUtils.getTaggedRecord(hoodieRecord, Option.empty());
+
+          LOG.info(">>> " + hoodieRecord.getRecordKey() + ","
+              + hoodieRecord.getPartitionPath() + ","
+              + "UPDATE_TO_NEW_PARTITION,"
+              + recordLocationHoodieKeyPair + ","
+              + taggedRecord.getRecordKey() + ","
+              + taggedRecord.getPartitionPath());
+
           return Arrays.asList(emptyRecord, taggedRecord).iterator();
         } else {
+          LOG.info(">>> " + hoodieRecord.getRecordKey() + ","
+              + hoodieRecord.getPartitionPath() + ","
+              + "UPDATE_TO_SAME_PARTITION,"
+              + recordLocationHoodieKeyPair);
           // Ignore the incoming record's partition, regardless of whether it differs from its old partition or not.
           // When it differs, the record will still be updated at its old partition.
           return Collections.singletonList(
@@ -136,6 +152,10 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
                   Option.ofNullable(recordLocationHoodieKeyPair.get()._1))).iterator();
         }
       } else {
+        LOG.info(">>> " + hoodieRecord.getRecordKey() + ","
+            + hoodieRecord.getPartitionPath() + ","
+            + "INSERT,"
+            + recordLocationHoodieKeyPair);
         return Collections.singletonList((HoodieRecord<T>) HoodieIndexUtils.getTaggedRecord(hoodieRecord, Option.empty())).iterator();
       }
     });
