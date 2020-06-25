@@ -217,6 +217,14 @@ public class HoodieClientTestUtils {
     }
   }
 
+  public static Dataset<Row> read(String basePath, SQLContext sqlContext, FileSystem fs, HoodieTestDataGenerator dataGen) {
+    String[] fullPartitionPaths = new String[dataGen.getPartitionPaths().length];
+    for (int i = 0; i < fullPartitionPaths.length; i++) {
+      fullPartitionPaths[i] = String.format("%s/%s/*", basePath, dataGen.getPartitionPaths()[i]);
+    }
+    return HoodieClientTestUtils.read(null, basePath, sqlContext, fs, fullPartitionPaths);
+  }
+
   public static String writeParquetFile(String basePath, String partitionPath, String filename,
                                         List<HoodieRecord> records, Schema schema, BloomFilter filter, boolean createCommitTime) throws IOException {
 

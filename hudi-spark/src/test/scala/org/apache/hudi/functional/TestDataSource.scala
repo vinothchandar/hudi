@@ -120,6 +120,10 @@ class TestDataSource {
 
     spark.read.format("org.apache.hudi").load(basePath + "/*/*").show(false);
 
+    System.err.println(basePath)
+
+    Thread.sleep(Long.MaxValue)
+
   }
 
   @Test def testCopyOnWriteStorage() {
