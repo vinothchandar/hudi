@@ -354,6 +354,303 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
         instants.get(4));
   }
 
+  private void testUpsertsInternalGlobalBloom(HoodieWriteConfig config,
+                                              Function3<JavaRDD<WriteStatus>, HoodieWriteClient, JavaRDD<HoodieRecord>, String> writeFn,
+                                              boolean isPrepped)
+      throws Exception {
+    try {
+      // Force using older timeline layout
+      HoodieWriteConfig hoodieWriteConfig = getConfigBuilder().withProps(config.getProps())
+          .withTimelineLayoutVersion(
+              VERSION_0).build();
+      HoodieTableMetaClient.initTableType(metaClient.getHadoopConf(), metaClient.getBasePath(),
+          metaClient.getTableType(),
+          metaClient.getTableConfig().getTableName(), metaClient.getArchivePath(),
+          metaClient.getTableConfig().getPayloadClass(), VERSION_0);
+      HoodieWriteClient client = getHoodieWriteClient(hoodieWriteConfig, false);
+
+      // Write 1 (only inserts)
+      String newCommitTime = "001";
+      String initCommitTime = "000";
+      int numRecords = 10;
+      int totalRecords = numRecords;
+
+      // Write 1 (only inserts)
+      client.startCommitWithTime(newCommitTime);
+
+      List<HoodieRecord> records = dataGen.generateInserts(newCommitTime, numRecords);
+      List<Pair<String, String>> expectedPartitionPathRecKeyPairs = new ArrayList<>();
+      for (HoodieRecord rec : records) {
+        System.out.println(
+            "Input: Recs to be inserted " + rec.getPartitionPath() + ": " + rec.getRecordKey());
+        expectedPartitionPathRecKeyPairs.add(Pair.of(rec.getPartitionPath(), rec.getRecordKey()));
+      }
+      JavaRDD<HoodieRecord> writeRecords = jsc.parallelize(records, 1);
+
+      JavaRDD<WriteStatus> result = writeFn.apply(client, writeRecords, newCommitTime);
+      List<WriteStatus> statuses = result.collect();
+      assertNoWriteErrors(statuses);
+
+      // check the partition metadata is written out
+      assertPartitionMetadataForRecords(records, fs);
+
+      // verify that there is a commit
+      HoodieTableMetaClient metaClient = new HoodieTableMetaClient(hadoopConf, basePath);
+      HoodieTimeline timeline = new HoodieActiveTimeline(metaClient).getCommitTimeline();
+
+      assertEquals(1, timeline.findInstantsAfter(initCommitTime, Integer.MAX_VALUE).countInstants(),
+          "Expecting " + 1 + " commits.");
+      assertEquals(newCommitTime, timeline.lastInstant().get().getTimestamp(),
+          "Latest commit should be " + newCommitTime);
+      assertEquals(numRecords,
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          "Must contain " + numRecords + " records");
+
+      Dataset<Row> rows = HoodieClientTestUtils
+          .readCommit(basePath, sqlContext, timeline, newCommitTime);
+
+      List<Pair<String, String>> actualPartitionPathRecKeyPairs = new ArrayList<>();
+
+      for (Row row : rows.collectAsList()) {
+        System.out.println(
+            "Output: Inserted row " + row.getAs("_hoodie_partition_path") + ":" + row
+                .getAs("_row_key"));
+        actualPartitionPathRecKeyPairs
+            .add(Pair.of(row.getAs("_hoodie_partition_path"), row.getAs("_row_key")));
+      }
+
+      assertEquals(actualPartitionPathRecKeyPairs.size(), expectedPartitionPathRecKeyPairs.size());
+      for (Pair<String, String> entry : actualPartitionPathRecKeyPairs) {
+        assertTrue(expectedPartitionPathRecKeyPairs.contains(entry));
+      }
+      for (Pair<String, String> entry : expectedPartitionPathRecKeyPairs) {
+        assertTrue(actualPartitionPathRecKeyPairs.contains(entry));
+      }
+
+      // Check the entire dataset has all records still
+      String[] fullPartitionPaths = new String[dataGen.getPartitionPaths().length];
+      for (int i = 0; i < fullPartitionPaths.length; i++) {
+        fullPartitionPaths[i] = String.format("%s/%s/*", basePath, dataGen.getPartitionPaths()[i]);
+      }
+      assertEquals(numRecords,
+          HoodieClientTestUtils.read(jsc, basePath, sqlContext, fs, fullPartitionPaths).count(),
+          "Must contain " + numRecords + " records");
+
+      // Check that the incremental consumption from prevCommitTime
+      /*assertEquals(
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          HoodieClientTestUtils.readSince(basePath, sqlContext, timeline, initCommitTime).count(),
+          "Incremental consumption from " + initCommitTime
+              + " should give all records in latest commit");*/
+      /*if (commitTimesBetweenPrevAndNew.isPresent()) {
+        commitTimesBetweenPrevAndNew.get().forEach(ct -> {
+          assertEquals(HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+              HoodieClientTestUtils.readSince(basePath, sqlContext, timeline, ct).count(),
+              "Incremental consumption from " + ct + " should give all records in latest commit");
+        });
+    }*/
+
+      /*insertFirstBatch(hoodieWriteConfig, client, newCommitTime, initCommitTime, numRecords, HoodieWriteClient::insert,
+        isPrepped, true, numRecords);*/
+
+      // Write 2 (updates)
+      String prevCommitTime = newCommitTime;
+      newCommitTime = "004";
+      numRecords = 5;
+      // totalRecords += numRecords;
+      String commitTimeBetweenPrevAndNew = "002";
+      Option<List<String>> commitTimesBetweenPrevAndNew = Option
+          .of(Arrays.asList(commitTimeBetweenPrevAndNew));
+
+      records = dataGen.generateUniqueUpdates(newCommitTime, numRecords);
+      expectedPartitionPathRecKeyPairs.clear();
+      for (HoodieRecord rec : records) {
+        System.out.println(
+            "Input: Recs to be upserted 111 " + rec.getPartitionPath() + ": " + rec.getRecordKey());
+        expectedPartitionPathRecKeyPairs.add(Pair.of(rec.getPartitionPath(), rec.getRecordKey()));
+      }
+      Map<String, List<HoodieRecord>> recordMap = new HashMap<>();
+      List<String> partitionSet = new ArrayList<>();
+      for (HoodieRecord rec : records) {
+        if (!recordMap.containsKey(rec.getPartitionPath())) {
+          recordMap.put(rec.getPartitionPath(), new ArrayList<>());
+        }
+        recordMap.get(rec.getPartitionPath()).add(rec);
+      }
+
+      partitionSet.addAll(recordMap.keySet());
+
+      System.out.println("REcord map " + recordMap.entrySet());
+
+      writeRecords = jsc.parallelize(records, 1);
+
+      result = writeFn.apply(client, writeRecords, newCommitTime);
+      statuses = result.collect();
+      assertNoWriteErrors(statuses);
+
+      // check the partition metadata is written out
+      assertPartitionMetadataForRecords(records, fs);
+
+      // verify that there is a commit
+      metaClient = new HoodieTableMetaClient(hadoopConf, basePath);
+      timeline = new HoodieActiveTimeline(metaClient).getCommitTimeline();
+
+      assertEquals(2, timeline.findInstantsAfter(initCommitTime, Integer.MAX_VALUE).countInstants(),
+          "Expecting " + 2 + " commits.");
+      assertEquals(newCommitTime, timeline.lastInstant().get().getTimestamp(),
+          "Latest commit should be " + newCommitTime);
+      assertEquals(numRecords,
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          "Must contain " + numRecords + " records");
+
+      rows = HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime);
+      actualPartitionPathRecKeyPairs.clear();
+      for (Row row : rows.collectAsList()) {
+        System.out.println(
+            "Output: After 1st upsert row " + row.getAs("_hoodie_partition_path") + ":" + row
+                .getAs("_row_key"));
+        actualPartitionPathRecKeyPairs
+            .add(Pair.of(row.getAs("_hoodie_partition_path"), row.getAs("_row_key")));
+      }
+
+      assertEquals(actualPartitionPathRecKeyPairs.size(), expectedPartitionPathRecKeyPairs.size());
+      for (Pair<String, String> entry : actualPartitionPathRecKeyPairs) {
+        assertTrue(expectedPartitionPathRecKeyPairs.contains(entry));
+      }
+      for (Pair<String, String> entry : expectedPartitionPathRecKeyPairs) {
+        assertTrue(actualPartitionPathRecKeyPairs.contains(entry));
+      }
+
+      // Check the entire dataset has all records still
+      fullPartitionPaths = new String[dataGen.getPartitionPaths().length];
+      for (int i = 0; i < fullPartitionPaths.length; i++) {
+        fullPartitionPaths[i] = String.format("%s/%s/*", basePath, dataGen.getPartitionPaths()[i]);
+      }
+      assertEquals(totalRecords,
+          HoodieClientTestUtils.read(jsc, basePath, sqlContext, fs, fullPartitionPaths).count(),
+          "Must contain " + totalRecords + " records");
+
+      // Check that the incremental consumption from prevCommitTime
+      assertEquals(
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          HoodieClientTestUtils.readSince(basePath, sqlContext, timeline, prevCommitTime).count(),
+          "Incremental consumption from " + initCommitTime
+              + " should give all records in latest commit");
+      if (commitTimesBetweenPrevAndNew.isPresent()) {
+        String finalNewCommitTime = newCommitTime;
+        HoodieTimeline finalTimeline = timeline;
+        commitTimesBetweenPrevAndNew.get().forEach(ct -> {
+          assertEquals(HoodieClientTestUtils.readCommit(basePath, sqlContext, finalTimeline,
+              finalNewCommitTime).count(),
+              HoodieClientTestUtils.readSince(basePath, sqlContext, finalTimeline, ct).count(),
+              "Incremental consumption from " + ct + " should give all records in latest commit");
+        });
+      }
+
+      List<HoodieRecord> recordsToUpsert = new ArrayList<>();
+      for (HoodieRecord rec : records) {
+        String partitionPath = rec.getPartitionPath();
+        if (partitionPath.equalsIgnoreCase(DEFAULT_FIRST_PARTITION_PATH)) {
+          recordsToUpsert.add(
+              new HoodieRecord(new HoodieKey(rec.getRecordKey(), DEFAULT_SECOND_PARTITION_PATH),
+                  rec.getData()));
+        } else if (partitionPath.equalsIgnoreCase(DEFAULT_SECOND_PARTITION_PATH)) {
+          recordsToUpsert.add(
+              new HoodieRecord(new HoodieKey(rec.getRecordKey(), DEFAULT_THIRD_PARTITION_PATH),
+                  rec.getData()));
+        } else if (partitionPath.equalsIgnoreCase(DEFAULT_THIRD_PARTITION_PATH)) {
+          recordsToUpsert.add(
+              new HoodieRecord(new HoodieKey(rec.getRecordKey(), DEFAULT_FIRST_PARTITION_PATH),
+                  rec.getData()));
+        } else {
+          throw new IllegalStateException("Unknown partition path " + rec.getPartitionPath());
+        }
+      }
+
+      prevCommitTime = newCommitTime;
+      newCommitTime = "005";
+      numRecords = 5;
+      // totalRecords += numRecords;
+      commitTimeBetweenPrevAndNew = "004";
+      commitTimesBetweenPrevAndNew = Option
+          .of(Arrays.asList(commitTimeBetweenPrevAndNew));
+
+      expectedPartitionPathRecKeyPairs.clear();
+      for (HoodieRecord rec : recordsToUpsert) {
+        System.out.println(
+            "Input: Recs to be upserted 222 " + rec.getPartitionPath() + ": " + rec.getRecordKey());
+        expectedPartitionPathRecKeyPairs.add(Pair.of(rec.getPartitionPath(), rec.getRecordKey()));
+      }
+
+      JavaRDD<HoodieRecord> upsertRecords = jsc.parallelize(recordsToUpsert, 1);
+
+      result = writeFn.apply(client, upsertRecords, newCommitTime);
+      statuses = result.collect();
+      assertNoWriteErrors(statuses);
+
+      // check the partition metadata is written out
+      assertPartitionMetadataForRecords(records, fs);
+
+      // verify that there is a commit
+      metaClient = new HoodieTableMetaClient(hadoopConf, basePath);
+      timeline = new HoodieActiveTimeline(metaClient).getCommitTimeline();
+
+      assertEquals(3, timeline.findInstantsAfter(initCommitTime, Integer.MAX_VALUE).countInstants(),
+          "Expecting " + 3 + " commits.");
+      assertEquals(newCommitTime, timeline.lastInstant().get().getTimestamp(),
+          "Latest commit should be " + newCommitTime);
+      assertEquals(numRecords,
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          "Must contain " + numRecords + " records");
+
+      // Check the entire dataset has all records still
+      fullPartitionPaths = new String[dataGen.getPartitionPaths().length];
+      for (int i = 0; i < fullPartitionPaths.length; i++) {
+        fullPartitionPaths[i] = String.format("%s/%s/*", basePath, dataGen.getPartitionPaths()[i]);
+      }
+      assertEquals(totalRecords,
+          HoodieClientTestUtils.read(jsc, basePath, sqlContext, fs, fullPartitionPaths).count(),
+          "Must contain " + totalRecords + " records");
+
+      rows = HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime);
+      actualPartitionPathRecKeyPairs.clear();
+      for (Row row : rows.collectAsList()) {
+        System.out.println(
+            "Output: After 2nd upsert row " + row.getAs("_hoodie_partition_path") + ":" + row
+                .getAs("_row_key"));
+        actualPartitionPathRecKeyPairs
+            .add(Pair.of(row.getAs("_hoodie_partition_path"), row.getAs("_row_key")));
+      }
+
+      assertEquals(actualPartitionPathRecKeyPairs.size(), expectedPartitionPathRecKeyPairs.size());
+      for (Pair<String, String> entry : actualPartitionPathRecKeyPairs) {
+        assertTrue(expectedPartitionPathRecKeyPairs.contains(entry));
+      }
+      for (Pair<String, String> entry : expectedPartitionPathRecKeyPairs) {
+        assertTrue(actualPartitionPathRecKeyPairs.contains(entry));
+      }
+
+      // Check that the incremental consumption from prevCommitTime
+      assertEquals(
+          HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime).count(),
+          HoodieClientTestUtils.readSince(basePath, sqlContext, timeline, prevCommitTime).count(),
+          "Incremental consumption from " + initCommitTime
+              + " should give all records in latest commit");
+      if (commitTimesBetweenPrevAndNew.isPresent()) {
+        String finalNewCommitTime = newCommitTime;
+        HoodieTimeline finalTimeline = timeline;
+        commitTimesBetweenPrevAndNew.get().forEach(ct -> {
+          assertEquals(HoodieClientTestUtils.readCommit(basePath, sqlContext, finalTimeline,
+              finalNewCommitTime).count(),
+              HoodieClientTestUtils.readSince(basePath, sqlContext, finalTimeline, ct).count(),
+              "Incremental consumption from " + ct + " should give all records in latest commit");
+        });
+      }
+    } catch (Throwable e) {
+      e.printStackTrace();
+    }
+  }
+
   /**
    * Tesst deletion of records.
    */

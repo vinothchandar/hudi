@@ -69,7 +69,9 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
     try {
       List<String> allPartitionPaths = FSUtils.getAllPartitionPaths(metaClient.getFs(), metaClient.getBasePath(),
           config.shouldAssumeDatePartitioning());
-      return super.loadInvolvedFiles(allPartitionPaths, jsc, hoodieTable);
+      List<Tuple2<String, BloomIndexFileInfo>> files = super.loadInvolvedFiles(allPartitionPaths, jsc, hoodieTable);
+      System.err.println(">>> Involved files : " + files);
+      return files;
     } catch (IOException e) {
       throw new HoodieIOException("Failed to load all partitions", e);
     }
@@ -94,14 +96,17 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
         config.useBloomIndexTreebasedFilter() ? new IntervalTreeBasedGlobalIndexFileFilter(partitionToFileIndexInfo)
             : new ListBasedGlobalIndexFileFilter(partitionToFileIndexInfo);
 
+    System.err.println(">>> exploding : " + partitionRecordKeyPairRDD.count());
     return partitionRecordKeyPairRDD.map(partitionRecordKeyPair -> {
       String recordKey = partitionRecordKeyPair._2();
       String partitionPath = partitionRecordKeyPair._1();
 
-      return indexFileFilter.getMatchingFilesAndPartition(partitionPath, recordKey).stream()
+      List<Tuple2<String, HoodieKey>> matchingFiles = indexFileFilter.getMatchingFilesAndPartition(partitionPath, recordKey).stream()
           .map(partitionFileIdPair -> new Tuple2<>(partitionFileIdPair.getRight(),
               new HoodieKey(recordKey, partitionFileIdPair.getLeft())))
           .collect(Collectors.toList());
+      System.err.println(">>> Matching files :" + recordKey + "," + partitionPath + "," + matchingFiles);
+      return matchingFiles;
     }).flatMap(List::iterator);
   }
 
@@ -122,6 +127,9 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
     return incomingRowKeyRecordPairRDD.leftOuterJoin(existingRecordKeyToRecordLocationHoodieKeyMap).values().flatMap(joinedVal -> {
       final HoodieRecord<T> hoodieRecord = joinedVal._1;
       final Optional<Tuple2<HoodieRecordLocation, HoodieKey>> recordLocationHoodieKeyPair = joinedVal._2;
+
+      System.err.println(">>> Tagging " + hoodieRecord + "," + recordLocationHoodieKeyPair);
+
       if (recordLocationHoodieKeyPair.isPresent()) {
         // Record key matched to file
         if (config.getBloomIndexUpdatePartitionPath()

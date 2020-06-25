@@ -39,7 +39,13 @@ import scala.concurrent.{Await, Future}
  */
 class TestDataSource {
 
-  var spark: SparkSession = null
+  val spark: SparkSession = SparkSession.builder
+    .appName("Hoodie Datasource test")
+    .master("local[2]")
+    .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
+    .getOrCreate
+  import spark.implicits._
+
   var dataGen: HoodieTestDataGenerator = null
   val commonOpts = Map(
     "hoodie.insert.shuffle.parallelism" -> "4",
@@ -52,12 +58,8 @@ class TestDataSource {
   var basePath: String = null
   var fs: FileSystem = null
 
-  @BeforeEach def initialize(@TempDir tempDir: java.nio.file.Path) {
-    spark = SparkSession.builder
-      .appName("Hoodie Datasource test")
-      .master("local[2]")
-      .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
-      .getOrCreate
+  @BeforeEach
+  def initialize(@TempDir tempDir: java.nio.file.Path) {
     dataGen = new HoodieTestDataGenerator()
     basePath = tempDir.toAbsolutePath.toString
     fs = FSUtils.getFs(basePath, spark.sparkContext.hadoopConfiguration)
@@ -74,6 +76,50 @@ class TestDataSource {
       .save(basePath)
 
     assertTrue(HoodieDataSourceHelpers.hasNewCommits(fs, basePath, "000"))
+  }
+
+  case class TestRec(MBR_SYS_ID : String, modifiedDt: String, modifiedTs: Long)
+
+  @Test def testUpdatePartitionPath(): Unit = {
+
+    val opts = Map(DataSourceWriteOptions.RECORDKEY_FIELD_OPT_KEY -> "MBR_SYS_ID",
+      DataSourceWriteOptions.PARTITIONPATH_FIELD_OPT_KEY -> "modifiedDt",
+      DataSourceWriteOptions.PRECOMBINE_FIELD_OPT_KEY -> "modifiedTs",
+      "hoodie.index.type" -> "GLOBAL_BLOOM",
+      "hoodie.bloom.index.update.partition.path" -> "true"
+    )
+
+    // insert
+    val inputDF1 = spark.read.json(spark.sparkContext.parallelize(Seq(
+      String.format("{\"MBR_SYS_ID\":\"%s\",\"modifiedDt\":\"%s\",\"modifiedTs\":%s}", "key1", "A", Long.box(1L)),
+      String.format("{\"MBR_SYS_ID\":\"%s\",\"modifiedDt\":\"%s\",\"modifiedTs\":%s}", "key2", "B", Long.box(2L))
+    )))
+
+    inputDF1.write.format("org.apache.hudi")
+      .options(commonOpts)
+      .options(opts)
+      .option(DataSourceWriteOptions.OPERATION_OPT_KEY, DataSourceWriteOptions.INSERT_OPERATION_OPT_VAL)
+      .mode(SaveMode.Overwrite)
+      .save(basePath)
+
+    spark.read.format("org.apache.hudi").load(basePath + "/*/*").show(false);
+    Thread.sleep(2000)
+
+    // upsert with partition path changed
+    val inputDF2 = spark.read.json(spark.sparkContext.parallelize(Seq(
+      String.format("{\"MBR_SYS_ID\":\"%s\",\"modifiedDt\":\"%s\",\"modifiedTs\":%s}", "key1", "B", Long.box(2L)),
+      String.format("{\"MBR_SYS_ID\":\"%s\",\"modifiedDt\":\"%s\",\"modifiedTs\":%s}", "key3", "B", Long.box(1L))
+    )))
+
+    inputDF2.write.format("org.apache.hudi")
+      .options(commonOpts)
+      .options(opts)
+      .option(DataSourceWriteOptions.OPERATION_OPT_KEY, DataSourceWriteOptions.UPSERT_OPERATION_OPT_VAL)
+      .mode(SaveMode.Append)
+      .save(basePath)
+
+    spark.read.format("org.apache.hudi").load(basePath + "/*/*").show(false);
+
   }
 
   @Test def testCopyOnWriteStorage() {
