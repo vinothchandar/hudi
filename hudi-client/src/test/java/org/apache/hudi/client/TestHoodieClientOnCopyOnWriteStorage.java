@@ -394,7 +394,8 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
       throws Exception {
     try {
       // Force using older timeline layout
-      HoodieWriteConfig hoodieWriteConfig = getConfigBuilder().withProps(config.getProps())
+      HoodieWriteConfig hoodieWriteConfig = getConfigBuilder()
+          .withProps(config.getProps())
           .withTimelineLayoutVersion(
               VERSION_0).build();
       HoodieTableMetaClient.initTableType(metaClient.getHadoopConf(), metaClient.getBasePath(),

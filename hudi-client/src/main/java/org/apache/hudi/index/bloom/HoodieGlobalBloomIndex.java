@@ -95,8 +95,6 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
     IndexFileFilter indexFileFilter =
         config.useBloomIndexTreebasedFilter() ? new IntervalTreeBasedGlobalIndexFileFilter(partitionToFileIndexInfo)
             : new ListBasedGlobalIndexFileFilter(partitionToFileIndexInfo);
-
-    System.err.println(">>> exploding : " + partitionRecordKeyPairRDD.count());
     return partitionRecordKeyPairRDD.map(partitionRecordKeyPair -> {
       String recordKey = partitionRecordKeyPair._2();
       String partitionPath = partitionRecordKeyPair._1();
@@ -140,7 +138,7 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
           // Tag the incoming record for inserting to the new partition
           HoodieRecord<T> taggedRecord = HoodieIndexUtils.getTaggedRecord(hoodieRecord, Option.empty());
 
-          LOG.info(">>> " + hoodieRecord.getRecordKey() + ","
+          System.err.println(">>> " + hoodieRecord.getRecordKey() + ","
               + hoodieRecord.getPartitionPath() + ","
               + "UPDATE_TO_NEW_PARTITION,"
               + recordLocationHoodieKeyPair + ","
@@ -149,7 +147,7 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
 
           return Arrays.asList(emptyRecord, taggedRecord).iterator();
         } else {
-          LOG.info(">>> " + hoodieRecord.getRecordKey() + ","
+          System.err.println(">>> " + hoodieRecord.getRecordKey() + ","
               + hoodieRecord.getPartitionPath() + ","
               + "UPDATE_TO_SAME_PARTITION,"
               + recordLocationHoodieKeyPair);
@@ -160,7 +158,7 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
                   Option.ofNullable(recordLocationHoodieKeyPair.get()._1))).iterator();
         }
       } else {
-        LOG.info(">>> " + hoodieRecord.getRecordKey() + ","
+        System.err.println(">>> " + hoodieRecord.getRecordKey() + ","
             + hoodieRecord.getPartitionPath() + ","
             + "INSERT,"
             + recordLocationHoodieKeyPair);
