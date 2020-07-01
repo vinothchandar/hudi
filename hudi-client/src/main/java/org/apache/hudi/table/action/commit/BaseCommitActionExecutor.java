@@ -87,6 +87,11 @@ public abstract class BaseCommitActionExecutor<T extends HoodieRecordPayload<T>>
       LOG.info("RDD PreppedRecords was persisted at: " + inputRecordsRDD.getStorageLevel());
     }
 
+    // Debug print..
+    inputRecordsRDD.foreach(r -> System.out.println(">>> After tagging: " + r.getKey()
+            + "," + r.getNewLocation() + "," + r.getCurrentLocation())
+    );
+
     WorkloadProfile profile = null;
     if (isWorkloadProfileNeeded()) {
       profile = new WorkloadProfile(inputRecordsRDD);

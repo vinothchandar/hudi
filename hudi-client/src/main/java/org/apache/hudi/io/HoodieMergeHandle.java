@@ -162,6 +162,7 @@ public class HoodieMergeHandle<T extends HoodieRecordPayload> extends HoodieWrit
       record.seal();
       // NOTE: Once Records are added to map (spillable-map), DO NOT change it as they won't persist
       keyToNewRecords.put(record.getRecordKey(), record);
+      System.out.println(">>>> MergeHandle map.put()" + fileId + "," + record.getKey() + "," + record.getData().getClass());
     }
     LOG.info("Number of entries in MemoryBasedMap => "
         + ((ExternalSpillableMap) keyToNewRecords).getInMemoryMapNumEntries()
@@ -222,6 +223,8 @@ public class HoodieMergeHandle<T extends HoodieRecordPayload> extends HoodieWrit
       try {
         Option<IndexedRecord> combinedAvroRecord =
             hoodieRecord.getData().combineAndGetUpdateValue(oldRecord, useWriterSchema ? writerSchema : originalSchema);
+        System.out.println(">>> MergeHandle after combining " + fileId + "," + hoodieRecord.getKey() + ","
+                + combinedAvroRecord.isPresent() + "," + hoodieRecord.getData().getClass());
         if (writeUpdateRecord(hoodieRecord, combinedAvroRecord)) {
           /*
            * ONLY WHEN 1) we have an update for this key AND 2) We are able to successfully write the the combined new

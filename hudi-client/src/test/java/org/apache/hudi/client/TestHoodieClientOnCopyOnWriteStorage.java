@@ -474,8 +474,8 @@ public class TestHoodieClientOnCopyOnWriteStorage extends HoodieClientTestBase {
       rows = HoodieClientTestUtils.readCommit(basePath, sqlContext, timeline, newCommitTime);
       actualPartitionPathRecKeyPairs.clear();
       for (Row row : rows.collectAsList()) {
-        System.out.println("Output: After 1st upsert row " + row.getAs("_hoodie_partition_path") + ":" +
-            row.getAs("_row_key"));
+        System.out.println("Output: After 1st upsert row " + row.getAs("_hoodie_partition_path") + ":"
+                + row.getAs("_row_key"));
         actualPartitionPathRecKeyPairs
             .add(Pair.of(row.getAs("_hoodie_partition_path"), row.getAs("_row_key")));
       }
