@@ -133,11 +133,13 @@ public class HoodieGlobalBloomIndex<T extends HoodieRecordPayload> extends Hoodi
         if (config.getBloomIndexUpdatePartitionPath()
             && !recordLocationHoodieKeyPair.get()._2.getPartitionPath().equals(hoodieRecord.getPartitionPath())) {
           // Create an empty record to delete the record in the old partition
-          HoodieRecord<T> emptyRecord = new HoodieRecord(recordLocationHoodieKeyPair.get()._2,
-              new EmptyHoodieRecordPayload());
+          HoodieRecord<T> emptyRecord = new HoodieRecord(recordLocationHoodieKeyPair.get()._2, new EmptyHoodieRecordPayload());
+          emptyRecord.unseal();
+          emptyRecord.setCurrentLocation(recordLocationHoodieKeyPair.get()._1());
+          emptyRecord.seal();
+
           // Tag the incoming record for inserting to the new partition
           HoodieRecord<T> taggedRecord = HoodieIndexUtils.getTaggedRecord(hoodieRecord, Option.empty());
-
           System.err.println(">>> " + hoodieRecord.getRecordKey() + ","
               + hoodieRecord.getPartitionPath() + ","
               + "UPDATE_TO_NEW_PARTITION,"
