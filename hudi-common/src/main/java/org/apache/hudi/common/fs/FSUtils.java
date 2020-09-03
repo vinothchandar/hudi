@@ -18,7 +18,6 @@
 
 package org.apache.hudi.common.fs;
 
-import org.apache.hudi.common.config.SerializableConfiguration;
 import org.apache.hudi.common.model.HoodieFileFormat;
 import org.apache.hudi.common.model.HoodieLogFile;
 import org.apache.hudi.common.model.HoodiePartitionMetadata;
@@ -29,7 +28,6 @@ import org.apache.hudi.common.util.collection.Pair;
 import org.apache.hudi.exception.HoodieException;
 import org.apache.hudi.exception.HoodieIOException;
 import org.apache.hudi.exception.InvalidHoodiePathException;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
@@ -46,10 +44,11 @@ import java.io.File;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map.Entry;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.regex.Matcher;
@@ -193,8 +192,17 @@ public class FSUtils {
   /**
    * Obtain all the partition paths, that are present in this table, denoted by presence of
    * {@link HoodiePartitionMetadata#HOODIE_PARTITION_METAFILE}.
+   *
+   * If the basePathStr is a subdirectory of .hoodie folder then we assume that the partitions of an internal
+   * table (a hoodie table within the .hoodie directory) are to be obtained.
+   *
+   * @param fs FileSystem instance
+   * @param basePathStr base directory
    */
   public static List<String> getAllFoldersWithPartitionMetaFile(FileSystem fs, String basePathStr) throws IOException {
+    // If the basePathStr is a folder within the .hoodie directory then we are listing partitions within an
+    // internal table.
+    final boolean isMetadataTable = basePathStr.contains(HoodieTableMetaClient.METAFOLDER_NAME);
     final Path basePath = new Path(basePathStr);
     final List<String> partitions = new ArrayList<>();
     processFiles(fs, basePathStr, (locatedFileStatus) -> {
@@ -203,14 +211,14 @@ public class FSUtils {
         partitions.add(getRelativePartitionPath(basePath, filePath.getParent()));
       }
       return true;
-    }, true);
+    }, !isMetadataTable);
     return partitions;
   }
 
   /**
    * Recursively processes all files in the base-path. If excludeMetaFolder is set, the meta-folder and all its subdirs
    * are skipped
-   * 
+   *
    * @param fs File System
    * @param basePathStr Base-Path
    * @param consumer Callback for processing
@@ -403,6 +411,23 @@ public class FSUtils {
   }
 
   /**
+   * Get the names of all the base and log files in the given partition path.
+   */
+  public static FileStatus[] getAllDataFilesInPartition(FileSystem fs, Path partitionPath) throws IOException {
+    final Set<String> validFileExtensions = Arrays.asList(HoodieFileFormat.values()).stream()
+        .map(f -> f.getFileExtension()).collect(Collectors.toCollection(HashSet::new));
+    final String logFileExtension = HoodieFileFormat.HOODIE_LOG.getFileExtension();
+
+    return (FileStatus[]) Arrays
+        .stream(fs.listStatus(partitionPath, path -> {
+          String extension = FSUtils.getFileExtension(path.getName());
+          return validFileExtensions.contains(extension) || path.getName().contains(logFileExtension);
+        }))
+        .filter(s -> s.isFile())
+        .toArray(FileStatus[]::new);
+  }
+
+  /**
    * Get the latest log version for the fileId in the partition path.
    */
   public static Option<Pair<Integer, String>> getLatestLogVersion(FileSystem fs, Path partitionPath,
@@ -520,7 +545,7 @@ public class FSUtils {
 
   /**
    * This is due to HUDI-140 GCS has a different behavior for detecting EOF during seek().
-   * 
+   *
    * @param inputStream FSDataInputStream
    * @return true if the inputstream or the wrapped one is of type GoogleHadoopFSInputStream
    */
@@ -536,22 +561,6 @@ public class FSUtils {
     returnConf.set("fs." + HoodieWrapperFileSystem.getHoodieScheme(scheme) + ".impl",
         HoodieWrapperFileSystem.class.getName());
     return returnConf;
-  }
-
-  /**
-   * Get the FS implementation for this table.
-   * @param path  Path String
-   * @param hadoopConf  Serializable Hadoop Configuration
-   * @param consistencyGuardConfig Consistency Guard Config
-   * @return HoodieWrapperFileSystem
-   */
-  public static HoodieWrapperFileSystem getFs(String path, SerializableConfiguration hadoopConf,
-      ConsistencyGuardConfig consistencyGuardConfig) {
-    FileSystem fileSystem = FSUtils.getFs(path, hadoopConf.newCopy());
-    return new HoodieWrapperFileSystem(fileSystem,
-        consistencyGuardConfig.isConsistencyCheckEnabled()
-            ? new FailSafeConsistencyGuard(fileSystem, consistencyGuardConfig)
-            : new NoOpConsistencyGuard());
   }
 
   /**
