@@ -21,6 +21,7 @@ import org.apache.hudi.client.HoodieReadClient;
 import org.apache.hudi.client.HoodieWriteClient;
 import org.apache.hudi.client.SparkTaskContextSupplier;
 import org.apache.hudi.common.fs.FSUtils;
+import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
 import org.apache.hudi.common.table.timeline.HoodieTimeline;
 import org.apache.hudi.common.table.view.HoodieTableFileSystemView;
@@ -42,6 +43,7 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 
@@ -189,6 +191,11 @@ public abstract class HoodieClientTestHarness extends HoodieCommonTestHarness im
    * @throws IOException
    */
   protected void initMetaClient() throws IOException {
+    initMetaClient(getTableType());
+  }
+
+
+  protected void initMetaClient(HoodieTableType tableType) throws IOException {
     if (basePath == null) {
       throw new IllegalStateException("The base path has not been initialized.");
     }
@@ -197,7 +204,7 @@ public abstract class HoodieClientTestHarness extends HoodieCommonTestHarness im
       throw new IllegalStateException("The Spark context has not been initialized.");
     }
 
-    metaClient = HoodieTestUtils.init(hadoopConf, basePath, getTableType());
+    metaClient = HoodieTestUtils.init(hadoopConf, basePath, tableType);
   }
 
   /**
