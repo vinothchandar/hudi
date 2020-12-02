@@ -43,7 +43,6 @@ import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.sql.SQLContext;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.TestInfo;
 
@@ -193,7 +192,6 @@ public abstract class HoodieClientTestHarness extends HoodieCommonTestHarness im
   protected void initMetaClient() throws IOException {
     initMetaClient(getTableType());
   }
-
 
   protected void initMetaClient(HoodieTableType tableType) throws IOException {
     if (basePath == null) {
