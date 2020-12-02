@@ -87,6 +87,7 @@ public class HoodieBackedTableMetadata implements HoodieTableMetadata {
   // Readers for the base and log file which store the metadata
   private transient HoodieFileReader<GenericRecord> basefileReader;
   private transient HoodieMetadataMergedLogRecordScanner logRecordScanner;
+  private transient HoodieMetadataMergedInstantRecordScanner timelineRecordScanner;
 
   public HoodieBackedTableMetadata(Configuration conf, String datasetBasePath, String spillableMapDirectory,
                                    boolean enabled, boolean validateLookups, boolean assumeDatePartitioning) {
@@ -237,10 +238,6 @@ public class HoodieBackedTableMetadata implements HoodieTableMetadata {
 
     FileStatus[] statuses = {};
     if (hoodieRecord.isPresent()) {
-      if (!hoodieRecord.get().getData().getDeletions().isEmpty()) {
-        throw new HoodieMetadataException("Metadata record for partition " + partitionName + " is inconsistent: "
-              + hoodieRecord.get().getData());
-      }
       statuses = hoodieRecord.get().getData().getFileStatuses(partitionPath);
     }
 
@@ -309,6 +306,13 @@ public class HoodieBackedTableMetadata implements HoodieTableMetadata {
       }
     }
 
+    // Retrieve record from unsynced timeline instants
+    Option<HoodieRecord<HoodieMetadataPayload>> timelineHoodieRecord = timelineRecordScanner.getRecordByKey(key);
+    if (timelineHoodieRecord.isPresent()) {
+      HoodieRecordPayload mergedPayload = timelineHoodieRecord.get().getData().preCombine(hoodieRecord.getData());
+      hoodieRecord = new HoodieRecord(hoodieRecord.getKey(), mergedPayload);
+    }
+
     return Option.ofNullable(hoodieRecord);
   }
 
@@ -366,6 +370,10 @@ public class HoodieBackedTableMetadata implements HoodieTableMetadata {
 
     LOG.info("Opened metadata log files from " + logFilePaths + " at instant " + latestInstantTime
         + "(dataset instant=" + latestInstantTime + ", metadata instant=" + latestMetaInstantTimestamp + ")");
+
+    List<HoodieInstant> unsyncedInstants = findInstantsToSync(datasetMetaClient);
+    timelineRecordScanner =
+            new HoodieMetadataMergedInstantRecordScanner(datasetMetaClient, unsyncedInstants, schema, MAX_MEMORY_SIZE_IN_BYTES, spillableMapDirectory, null);
 
     metrics.ifPresent(metrics -> metrics.updateMetrics(HoodieMetadataMetrics.SCAN_STR, timer.endTimer()));
   }
