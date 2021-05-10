@@ -17,10 +17,6 @@
 
 package org.apache.hudi.functional
 
-import java.time.Instant
-import java.util
-import java.util.{Collections, Date, UUID}
-
 import org.apache.commons.io.FileUtils
 import org.apache.hadoop.fs.Path
 import org.apache.hudi.DataSourceWriteOptions._
@@ -29,8 +25,8 @@ import org.apache.hudi.common.model.{HoodieRecord, HoodieRecordPayload}
 import org.apache.hudi.common.testutils.HoodieTestDataGenerator
 import org.apache.hudi.config.{HoodieBootstrapConfig, HoodieWriteConfig}
 import org.apache.hudi.exception.HoodieException
-import org.apache.hudi.keygen.{NonpartitionedKeyGenerator, SimpleKeyGenerator}
 import org.apache.hudi.hive.HiveSyncConfig
+import org.apache.hudi.keygen.{NonpartitionedKeyGenerator, SimpleKeyGenerator}
 import org.apache.hudi.testutils.DataSourceTestUtils
 import org.apache.hudi.{AvroConversionUtils, DataSourceUtils, DataSourceWriteOptions, HoodieSparkSqlWriter, HoodieWriterUtils}
 import org.apache.spark.SparkContext
@@ -38,12 +34,15 @@ import org.apache.spark.api.java.JavaSparkContext
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{Row, SQLContext, SaveMode, SparkSession}
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.mockito.ArgumentMatchers.any
 import org.mockito.Mockito.{spy, times, verify}
 import org.scalatest.{FunSuite, Matchers}
 
+import java.time.Instant
+import java.util
+import java.util.{Collections, Date, UUID}
 import scala.collection.JavaConversions._
-import org.junit.jupiter.api.Assertions.assertEquals
 
 class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
 
@@ -458,6 +457,9 @@ class HoodieSparkSqlWriterSuite extends FunSuite with Matchers {
           val trimmedDf2 = snapshotDF1.drop(HoodieRecord.HOODIE_META_COLUMNS.get(0)).drop(HoodieRecord.HOODIE_META_COLUMNS.get(1))
             .drop(HoodieRecord.HOODIE_META_COLUMNS.get(2)).drop(HoodieRecord.HOODIE_META_COLUMNS.get(3))
             .drop(HoodieRecord.HOODIE_META_COLUMNS.get(4))
+
+          updatesDf.printSchema()
+          trimmedDf2.printSchema()
 
           // ensure 2nd batch of updates matches.
           assert(updatesDf.intersect(trimmedDf2).except(updatesDf).count() == 0)
