@@ -53,8 +53,9 @@ recordKey=volume
 numHudiPartitions=5
 partitionField=date
 schemaFile=${HUDI_DIR}/docker/demo/config/schema.avsc
+deleteTopic="N"
 
-while getopts ":n:f:k:m:r:l:p:s:-:" opt; do
+while getopts ":n:f:k:m:r:l:p:ds:-:" opt; do
   case $opt in
   n)
     num_records="$OPTARG"
@@ -80,11 +81,15 @@ while getopts ":n:f:k:m:r:l:p:s:-:" opt; do
     numHudiPartitions="$OPTARG"
     printf "Argument num-hudi-partitions is %s\n" "$numHudiPartitions"
     ;;
+  d)
+    deleteTopic="Y"
+    printf "Argument delete and recreate topic is Y \n"
+    ;;
   p)
     partitionField="$OPTARG"
     printf "Argument partition-key is %s\n" "$partitionField"
     ;;
-  p)
+  s)
     schemaFile="$OPTARG"
     printf "Argument schema-file is %s\n" "$schemaFile"
     ;;
@@ -94,11 +99,13 @@ while getopts ":n:f:k:m:r:l:p:s:-:" opt; do
   esac
 done
 
-# First delete the existing topic
-#${KAFKA_HOME}/bin/kafka-topics.sh --delete --topic ${kafkaTopicName} --bootstrap-server localhost:9092
+if [ $deleteTopic = "Y" ]; then
+  # First delete the existing topic
+  ${KAFKA_HOME}/bin/kafka-topics.sh --delete --topic ${kafkaTopicName} --bootstrap-server localhost:9092
 
-# Create the topic with 4 partitions
-#${KAFKA_HOME}/bin/kafka-topics.sh --create --topic ${kafkaTopicName} --partitions $numKafkaPartitions --replication-factor 1 --bootstrap-server localhost:9092
+  # Create the topic with 4 partitions
+  ${KAFKA_HOME}/bin/kafka-topics.sh --create --topic ${kafkaTopicName} --partitions $numKafkaPartitions --replication-factor 1 --bootstrap-server localhost:9092
+fi
 
 # Setup the schema registry
 export SCHEMA=$(sed 's|/\*|\n&|g;s|*/|&\n|g' ${schemaFile} | sed '/\/\*/,/*\//d' | jq tostring)

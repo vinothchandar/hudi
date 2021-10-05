@@ -27,7 +27,11 @@ import org.apache.hudi.common.model.HoodieAvroPayload;
 import org.apache.hudi.common.model.HoodieCommitMetadata;
 import org.apache.hudi.common.model.HoodieTableType;
 import org.apache.hudi.common.table.HoodieTableMetaClient;
+import org.apache.hudi.common.util.CollectionUtils;
 import org.apache.hudi.common.util.Option;
+import org.apache.hudi.common.util.collection.Pair;
+import org.apache.hudi.config.HoodieClusteringConfig;
+import org.apache.hudi.config.HoodieCompactionConfig;
 import org.apache.hudi.config.HoodieWriteConfig;
 import org.apache.hudi.connect.transaction.TransactionCoordinator;
 import org.apache.hudi.connect.utils.KafkaConnectUtils;
@@ -62,7 +66,13 @@ public class KafkaConnectTransactionServices implements ConnectTransactionServic
 
   public KafkaConnectTransactionServices(KafkaConnectConfigs connectConfigs) throws HoodieException {
     HoodieWriteConfig writeConfig = HoodieWriteConfig.newBuilder()
-        .withProperties(connectConfigs.getProps()).build();
+        .withProperties(connectConfigs.getProps())
+        // always turn off any inline compaction, clustering, to keep commit times shorter.
+        .withProps(CollectionUtils.createImmutableMap(
+            Pair.of(HoodieCompactionConfig.INLINE_COMPACT.key(), "false"),
+            Pair.of(HoodieClusteringConfig.INLINE_CLUSTERING.key(), "false")
+        ))
+        .build();
 
     tableBasePath = writeConfig.getBasePath();
     tableName = writeConfig.getTableName();
@@ -105,6 +115,10 @@ public class KafkaConnectTransactionServices implements ConnectTransactionServic
   public void endCommit(String commitTime, List<WriteStatus> writeStatuses, Map<String, String> extraMetadata) {
     javaClient.commit(commitTime, writeStatuses, Option.of(extraMetadata));
     LOG.info("Ending Hudi commit " + commitTime);
+
+    // Schedule clustering and compaction as needed.
+    javaClient.scheduleClustering(Option.empty()).ifPresent(instantTs -> LOG.info("Scheduled clustering at instant time:" + instantTs));
+    javaClient.scheduleCompaction(Option.empty()).ifPresent(instantTs -> LOG.info("Scheduled compaction at instant time:" + instantTs));
   }
 
   public Map<String, String> fetchLatestExtraCommitMetadata() {
