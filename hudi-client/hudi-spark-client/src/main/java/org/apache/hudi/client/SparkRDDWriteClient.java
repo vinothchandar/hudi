@@ -389,15 +389,16 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
     writeTableMetadata(table, metadata, new HoodieInstant(HoodieInstant.State.INFLIGHT, HoodieTimeline.REPLACE_COMMIT_ACTION, clusteringCommitTime));
     finalizeWrite(table, clusteringCommitTime, writeStats);
     try {
-      // try to save statistics info to hudi
-      if (config.isDataSkippingEnabled() && config.isLayoutOptimizationEnabled() && !config.getClusteringSortColumns().isEmpty()) {
-        table.updateStatistics(context, writeStats, clusteringCommitTime, true);
+      // Update outstanding metadata indexes
+      if (config.isLayoutOptimizationEnabled()
+          && !config.getClusteringSortColumns().isEmpty()) {
+        table.updateMetadataIndexes(context, writeStats, clusteringCommitTime);
       }
       LOG.info("Committing Clustering " + clusteringCommitTime + ". Finished with result " + metadata);
       table.getActiveTimeline().transitionReplaceInflightToComplete(
           HoodieTimeline.getReplaceCommitInflightInstant(clusteringCommitTime),
           Option.of(metadata.toJsonString().getBytes(StandardCharsets.UTF_8)));
-    } catch (IOException e) {
+    } catch (Exception e) {
       throw new HoodieClusteringException("unable to transition clustering inflight to complete: " + clusteringCommitTime, e);
     }
     WriteMarkersFactory.get(config.getMarkersType(), table, clusteringCommitTime)
