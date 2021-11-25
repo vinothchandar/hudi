@@ -44,6 +44,7 @@ import org.apache.log4j.Logger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -350,7 +351,7 @@ public class HoodieTableMetadataUtil {
     }
 
     HoodieTableFileSystemView fsView = new HoodieTableFileSystemView(metaClient, timeline);
-    return fsView.getLatestFileSlices(partition).sorted((s1, s2) -> s1.getFileId().compareTo(s2.getFileId()))
+    return fsView.getLatestFileSlices(partition).sorted(Comparator.comparing(FileSlice::getFileId))
         .collect(Collectors.toList());
   }
 }

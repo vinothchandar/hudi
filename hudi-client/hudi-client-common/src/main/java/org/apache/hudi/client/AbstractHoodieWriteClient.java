@@ -22,6 +22,8 @@ import org.apache.hudi.avro.model.HoodieCleanMetadata;
 import org.apache.hudi.avro.model.HoodieCleanerPlan;
 import org.apache.hudi.avro.model.HoodieClusteringPlan;
 import org.apache.hudi.avro.model.HoodieCompactionPlan;
+import org.apache.hudi.avro.model.HoodieIndexingMetadata;
+import org.apache.hudi.avro.model.HoodieIndexingPlan;
 import org.apache.hudi.avro.model.HoodieRestoreMetadata;
 import org.apache.hudi.avro.model.HoodieRollbackMetadata;
 import org.apache.hudi.avro.model.HoodieRollbackPlan;
@@ -847,6 +849,16 @@ public abstract class AbstractHoodieWriteClient<T extends HoodieRecordPayload, I
     return true;
   }
 
+  public Option<String> scheduleIndexing(Option<Map<String, String>> extraMetadata) throws HoodieIOException {
+    //FIXME(indexing): how do we know what partitions to index?
+    return scheduleTableService(extraMetadata, TableServiceType.INDEXING);
+  }
+
+  public HoodieIndexingMetadata index(String instantTime) {
+    HoodieTable<T, I, K, O> table = createTable(config, hadoopConf);
+    return table.index(context, instantTime);
+  }
+
   protected void rollbackFailedWrites(List<String> instantsToRollback, boolean skipLocking) {
     for (String instant : instantsToRollback) {
       if (HoodieTimeline.compareTimestamps(instant, HoodieTimeline.LESSER_THAN_OR_EQUALS,
@@ -989,22 +1001,24 @@ public abstract class AbstractHoodieWriteClient<T extends HoodieRecordPayload, I
 
   private Option<String> scheduleTableServiceInternal(String instantTime, Option<Map<String, String>> extraMetadata,
                                                       TableServiceType tableServiceType) {
+    LOG.info("Scheduling " + tableServiceType + " at instant time :" + instantTime);
     switch (tableServiceType) {
       case CLUSTER:
-        LOG.info("Scheduling clustering at instant time :" + instantTime);
         Option<HoodieClusteringPlan> clusteringPlan = createTable(config, hadoopConf, config.isMetadataTableEnabled())
             .scheduleClustering(context, instantTime, extraMetadata);
-        return clusteringPlan.isPresent() ? Option.of(instantTime) : Option.empty();
+        return clusteringPlan.map(p -> instantTime);
       case COMPACT:
-        LOG.info("Scheduling compaction at instant time :" + instantTime);
         Option<HoodieCompactionPlan> compactionPlan = createTable(config, hadoopConf, config.isMetadataTableEnabled())
             .scheduleCompaction(context, instantTime, extraMetadata);
-        return compactionPlan.isPresent() ? Option.of(instantTime) : Option.empty();
+        return compactionPlan.map(p -> instantTime);
       case CLEAN:
-        LOG.info("Scheduling cleaning at instant time :" + instantTime);
         Option<HoodieCleanerPlan> cleanerPlan = createTable(config, hadoopConf, config.isMetadataTableEnabled())
             .scheduleCleaning(context, instantTime, extraMetadata);
-        return cleanerPlan.isPresent() ? Option.of(instantTime) : Option.empty();
+        return cleanerPlan.map(p -> instantTime);
+      case INDEXING:
+        Option<HoodieIndexingPlan> indexingPlan = createTable(config, hadoopConf, config.isMetadataTableEnabled())
+            .scheduleIndexing(context, instantTime, extraMetadata);
+        return indexingPlan.map(p -> instantTime);
       default:
         throw new IllegalArgumentException("Invalid TableService " + tableServiceType);
     }

@@ -106,7 +106,7 @@ public class SparkRDDWriteClient<T extends HoodieRecordPayload> extends
       UpgradeDowngrade upgradeDowngrade = new UpgradeDowngrade(
           metaClient, config, context, SparkUpgradeDowngradeHelper.getInstance());
       if (!upgradeDowngrade.needsUpgradeOrDowngrade(HoodieTableVersion.current())) {
-        // TODO: Check if we can remove this requirement - auto bootstrap on commit
+        // FIXME(indexing): Check if we can remove this requirement - auto bootstrap on commit
         SparkHoodieBackedTableMetadataWriter.create(context.getHadoopConf().get(), config, context, Option.empty(),
                                                     inflightInstantTimestamp);
       }

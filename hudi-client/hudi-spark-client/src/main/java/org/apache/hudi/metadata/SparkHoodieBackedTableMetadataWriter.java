@@ -19,6 +19,8 @@
 package org.apache.hudi.metadata;
 
 import org.apache.avro.specific.SpecificRecordBase;
+
+import org.apache.hudi.client.AbstractHoodieWriteClient;
 import org.apache.hudi.client.SparkRDDWriteClient;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.client.common.HoodieSparkEngineContext;
@@ -113,7 +115,7 @@ public class SparkHoodieBackedTableMetadataWriter extends HoodieBackedTableMetad
       });
 
       if (enabled) {
-        bootstrapIfNeeded(engineContext, dataMetaClient, actionMetadata, inflightInstantTimestamp);
+        initializeIfNeeded(engineContext, dataMetaClient, actionMetadata, inflightInstantTimestamp);
       }
     } catch (IOException e) {
       LOG.error("Failed to initialize metadata table. Disabling the writer.", e);
@@ -121,12 +123,17 @@ public class SparkHoodieBackedTableMetadataWriter extends HoodieBackedTableMetad
     }
   }
 
+  @Override
+  protected AbstractHoodieWriteClient<?, ?, ?, ?> getWriteClient(HoodieWriteConfig writeConfig) {
+    return new SparkRDDWriteClient<>(engineContext, writeConfig);
+  }
+
   protected void commit(HoodieData<HoodieRecord> hoodieDataRecords, String partitionName, String instantTime, boolean canTriggerTableService) {
     ValidationUtils.checkState(enabled, "Metadata table cannot be committed to as it is not enabled");
     JavaRDD<HoodieRecord> records = (JavaRDD<HoodieRecord>) hoodieDataRecords.get();
     JavaRDD<HoodieRecord> recordRDD = prepRecords(records, partitionName, 1);
 
-    try (SparkRDDWriteClient writeClient = new SparkRDDWriteClient(engineContext, metadataWriteConfig, true)) {
+    try (SparkRDDWriteClient writeClient = (SparkRDDWriteClient) getWriteClient(metadataWriteConfig)) {
       if (!metadataMetaClient.getActiveTimeline().filterCompletedInstants().containsInstant(instantTime)) {
         // if this is a new commit being applied to metadata for the first time
         writeClient.startCommitWithTime(instantTime);
@@ -171,6 +178,7 @@ public class SparkHoodieBackedTableMetadataWriter extends HoodieBackedTableMetad
     ValidationUtils.checkArgument(fileSlices.size() == numFileGroups, String.format("Invalid number of file groups: found=%d, required=%d", fileSlices.size(), numFileGroups));
 
     return recordsRDD.map(r -> {
+      // FIXME(indexing): is this determinsitic? to me it seems like this relies on the ordering from `fileSlices`
       FileSlice slice = fileSlices.get(HoodieTableMetadataUtil.mapRecordKeyToFileGroupIndex(r.getRecordKey(), numFileGroups));
       r.setCurrentLocation(new HoodieRecordLocation(slice.getBaseInstantTime(), slice.getFileId()));
       return r;

@@ -19,6 +19,8 @@
 package org.apache.hudi.metadata;
 
 import org.apache.avro.specific.SpecificRecordBase;
+
+import org.apache.hudi.client.AbstractHoodieWriteClient;
 import org.apache.hudi.client.HoodieFlinkWriteClient;
 import org.apache.hudi.client.WriteStatus;
 import org.apache.hudi.common.data.HoodieData;
@@ -83,7 +85,7 @@ public class FlinkHoodieBackedTableMetadataWriter extends HoodieBackedTableMetad
                                                            Option<String> inflightInstantTimestamp) {
     try {
       if (enabled) {
-        bootstrapIfNeeded(engineContext, dataMetaClient, actionMetadata, inflightInstantTimestamp);
+        initializeIfNeeded(engineContext, dataMetaClient, actionMetadata, inflightInstantTimestamp);
       }
     } catch (IOException e) {
       LOG.error("Failed to initialize metadata table. Disabling the writer.", e);
@@ -97,7 +99,7 @@ public class FlinkHoodieBackedTableMetadataWriter extends HoodieBackedTableMetad
     List<HoodieRecord> records = (List<HoodieRecord>) hoodieDataRecords.get();
     List<HoodieRecord> recordList = prepRecords(records, partitionName, 1);
 
-    try (HoodieFlinkWriteClient writeClient = new HoodieFlinkWriteClient(engineContext, metadataWriteConfig)) {
+    try (HoodieFlinkWriteClient writeClient = (HoodieFlinkWriteClient) getWriteClient(metadataWriteConfig)) {
       if (!metadataMetaClient.getActiveTimeline().filterCompletedInstants().containsInstant(instantTime)) {
         // if this is a new commit being applied to metadata for the first time
         writeClient.startCommitWithTime(instantTime);
@@ -153,5 +155,10 @@ public class FlinkHoodieBackedTableMetadataWriter extends HoodieBackedTableMetad
       r.setCurrentLocation(new HoodieRecordLocation(instantTime, slice.getFileId()));
       return r;
     }).collect(Collectors.toList());
+  }
+
+  @Override
+  protected AbstractHoodieWriteClient<?, ?, ?, ?> getWriteClient(HoodieWriteConfig writeConfig) {
+    return new HoodieFlinkWriteClient<>(engineContext, writeConfig);
   }
 }

@@ -224,6 +224,11 @@ public class HoodieDefaultTimeline implements HoodieTimeline {
             (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails);
   }
 
+  public HoodieTimeline getIndexingTimeline() {
+    return new HoodieDefaultTimeline(filterInstantsByAction(INDEXING_ACTION),
+        (Function<HoodieInstant, Option<byte[]>> & Serializable) this::getInstantDetails);
+  }
+
   /**
    * Get only the rollback action (inflight and completed) in the active timeline.
    */

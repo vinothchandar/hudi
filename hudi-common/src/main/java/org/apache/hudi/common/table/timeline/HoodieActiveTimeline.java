@@ -65,9 +65,11 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
       SAVEPOINT_EXTENSION, INFLIGHT_SAVEPOINT_EXTENSION,
       CLEAN_EXTENSION, REQUESTED_CLEAN_EXTENSION, INFLIGHT_CLEAN_EXTENSION,
       INFLIGHT_COMPACTION_EXTENSION, REQUESTED_COMPACTION_EXTENSION,
-      INFLIGHT_RESTORE_EXTENSION, RESTORE_EXTENSION,
-      ROLLBACK_EXTENSION, REQUESTED_ROLLBACK_EXTENSION, INFLIGHT_ROLLBACK_EXTENSION,
-      REQUESTED_REPLACE_COMMIT_EXTENSION, INFLIGHT_REPLACE_COMMIT_EXTENSION, REPLACE_COMMIT_EXTENSION));
+      RESTORE_EXTENSION, INFLIGHT_RESTORE_EXTENSION,
+      ROLLBACK_EXTENSION, INFLIGHT_ROLLBACK_EXTENSION, REQUESTED_ROLLBACK_EXTENSION,
+      REPLACE_COMMIT_EXTENSION, INFLIGHT_REPLACE_COMMIT_EXTENSION, REQUESTED_REPLACE_COMMIT_EXTENSION,
+      INDEXING_EXTENSION, INFLIGHT_INDEXING_EXTENSION, REQUESTED_INDEXING_EXTENSION
+  ));
   private static final Logger LOG = LogManager.getLogger(HoodieActiveTimeline.class);
   protected HoodieTableMetaClient metaClient;
 
@@ -253,7 +255,7 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     // Cleaner metadata are always stored only in timeline .hoodie
     return readDataFromPath(new Path(metaClient.getMetaPath(), instant.getFileName()));
   }
-
+  
   public Option<byte[]> readRollbackInfoAsBytes(HoodieInstant instant) {
     // Rollback metadata are always stored only in timeline .hoodie
     return readDataFromPath(new Path(metaClient.getMetaPath(), instant.getFileName()));
@@ -560,6 +562,12 @@ public class HoodieActiveTimeline extends HoodieDefaultTimeline {
     ValidationUtils.checkArgument(instant.getAction().equals(HoodieTimeline.CLEAN_ACTION));
     ValidationUtils.checkArgument(instant.getState().equals(State.REQUESTED));
     // Plan is stored in meta path
+    createFileInMetaPath(instant.getFileName(), content, false);
+  }
+
+  public void saveToIndexingRequested(HoodieInstant instant, Option<byte[]> content) {
+    ValidationUtils.checkArgument(instant.getAction().equals(HoodieTimeline.INDEXING_ACTION));
+    ValidationUtils.checkArgument(instant.getState().equals(State.REQUESTED));
     createFileInMetaPath(instant.getFileName(), content, false);
   }
 

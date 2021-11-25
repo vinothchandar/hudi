@@ -281,7 +281,7 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
     // For any rollbacks and restores, we cannot neglect the instants that they are rolling back.
     // The rollback instant should be more recent than the start of the timeline for it to have rolled back any
     // instant which we have a log block for.
-    final String earliestInstantTime = validInstantTimestamps.isEmpty() ? SOLO_COMMIT_TIMESTAMP : Collections.min(validInstantTimestamps);
+    final String earliestInstantTime = validInstantTimestamps.isEmpty() ? INIT_COMMIT_TIMESTAMP : Collections.min(validInstantTimestamps);
     datasetTimeline.getRollbackAndRestoreTimeline().filterCompletedInstants().getInstants()
         .filter(instant -> HoodieTimeline.compareTimestamps(instant.getTimestamp(), HoodieTimeline.GREATER_THAN, earliestInstantTime))
         .forEach(instant -> {
@@ -289,7 +289,7 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
         });
 
     // SOLO_COMMIT_TIMESTAMP is used during bootstrap so it is a valid timestamp
-    validInstantTimestamps.add(SOLO_COMMIT_TIMESTAMP);
+    validInstantTimestamps.add(INIT_COMMIT_TIMESTAMP);
     return validInstantTimestamps;
   }
 
@@ -305,7 +305,7 @@ public class HoodieBackedTableMetadata extends BaseTableMetadata {
     Set<String> validInstantTimestamps = getValidInstantTimestamps();
 
     Option<HoodieInstant> latestMetadataInstant = metadataMetaClient.getActiveTimeline().filterCompletedInstants().lastInstant();
-    String latestMetadataInstantTime = latestMetadataInstant.map(HoodieInstant::getTimestamp).orElse(SOLO_COMMIT_TIMESTAMP);
+    String latestMetadataInstantTime = latestMetadataInstant.map(HoodieInstant::getTimestamp).orElse(INIT_COMMIT_TIMESTAMP);
 
     // Load the schema
     Schema schema = HoodieAvroUtils.addMetadataFields(HoodieMetadataRecord.getClassSchema());

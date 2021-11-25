@@ -24,6 +24,8 @@ import org.apache.hudi.avro.model.HoodieCleanMetadata;
 import org.apache.hudi.avro.model.HoodieCleanerPlan;
 import org.apache.hudi.avro.model.HoodieClusteringPlan;
 import org.apache.hudi.avro.model.HoodieCompactionPlan;
+import org.apache.hudi.avro.model.HoodieIndexingMetadata;
+import org.apache.hudi.avro.model.HoodieIndexingPlan;
 import org.apache.hudi.avro.model.HoodieRestoreMetadata;
 import org.apache.hudi.avro.model.HoodieRollbackMetadata;
 import org.apache.hudi.avro.model.HoodieRollbackPlan;
@@ -67,6 +69,8 @@ import org.apache.hudi.metadata.HoodieTableMetadata;
 import org.apache.hudi.metadata.HoodieTableMetadataWriter;
 import org.apache.hudi.table.action.HoodieWriteMetadata;
 import org.apache.hudi.table.action.bootstrap.HoodieBootstrapWriteMetadata;
+import org.apache.hudi.table.action.indexing.HoodieIndexingActionExecutor;
+import org.apache.hudi.table.action.indexing.HoodieIndexingPlanActionExecutor;
 import org.apache.hudi.table.marker.WriteMarkers;
 import org.apache.hudi.table.marker.WriteMarkersFactory;
 
@@ -329,6 +333,10 @@ public abstract class HoodieTable<T extends HoodieRecordPayload, I, K, O> implem
     return getActiveTimeline().getCleanerTimeline();
   }
 
+  public HoodieTimeline getIndexingTimeline() {
+    return getActiveTimeline().getIndexingTimeline();
+  }
+
   /**
    * Get rollback timeline.
    */
@@ -401,6 +409,17 @@ public abstract class HoodieTable<T extends HoodieRecordPayload, I, K, O> implem
    * @param clusteringInstantTime Instant Time
    */
   public abstract HoodieWriteMetadata<O> cluster(HoodieEngineContext context, String clusteringInstantTime);
+
+  public Option<HoodieIndexingPlan> scheduleIndexing(HoodieEngineContext context,
+                                                     String indexingInstantTime,
+                                                     Option<Map<String, String>> extraMetadata) {
+    //FIXME(indexing): need to extend this for other engines?
+    return new HoodieIndexingPlanActionExecutor<>(context, config,this, indexingInstantTime, extraMetadata).execute();
+  }
+
+  public HoodieIndexingMetadata index(HoodieEngineContext context, String indexingInstantTime) {
+    return new HoodieIndexingActionExecutor<>(context, config, this, indexingInstantTime).execute();
+  }
 
   /**
    * Perform metadata/full bootstrap of a Hudi table.
