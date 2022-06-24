@@ -141,6 +141,10 @@ module.exports = {
               href: '/learn/faq',
             },
             {
+              label: 'Tech Specs',
+              href: '/tech-specs',
+            },
+            {
               label: 'Technical Wiki',
               href: 'https://cwiki.apache.org/confluence/display/HUDI',
             }
