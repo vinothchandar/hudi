@@ -3,7 +3,8 @@ title: "Technical Specifications"
 keywords: [hudi, technical, specifications]
 last_modified_at: 2019-12-31T15:59:57-04:00
 ---
-# Overview
+
+# Overview 
 
 This document is a specification for the Hudi table layout and concurrency
 control model, which brings core warehouse and database functionality directly
@@ -11,8 +12,6 @@ to a data lake. Hudi provides tables, transactions, efficient upserts/deletes,
 advanced indexes, streaming ingestion services, data clustering/compaction
 optimizations, and concurrency all while keeping your data in open source file
 formats.
-
-## Goals
 
 The specification was designed with the following goals in mind:
 
@@ -24,8 +23,6 @@ The specification was designed with the following goals in mind:
 - **Self-managing** - bring down operational costs of managing a large data
   pipeline by providing self-managing table services such as compaction,
   clustering and cleaning.
-
-## Design Principles
 
 To attain the above goals, Hudi's core features adhere to certain design
 principles.
@@ -44,7 +41,7 @@ principles.
 With these goals and design principles in mind, let us dive into a Hudi table
 layout and concurrency control mechanism.
 
-# Hudi Table Layout
+# Table Layout
 
 There are three main components of a Hudi table:
 
@@ -54,7 +51,79 @@ There are three main components of a Hudi table:
 3. Metadata table, internally-managed metadata to support different indexes for
    efficient lookups during read and write.
 
-## Hudi Timeline
+## Partitioning
+TODO(vc): Need to differentiate how we are/never did Hive style partitioning.
+
+## Meta fields
+TODO(vc): explain all the meta fields, why they exist.
+
+# File Layout
+
+Hudi organizes data tables into a directory structure under a base path (root
+directory for the table) on a distributed file system. The general layout
+structure is as follows:
+
+* All metadata of a Hudi table is located in `.hoodie` directory under the base
+  path.
+* Tables are broken up into partitions.
+* Within each partition, files are organized into file groups, uniquely
+  identified by a file ID.
+* Each file group contains several file slices.
+* Each slice contains a base file (`.parquet`) produced at a certain
+  commit/compaction instant time, along with set of log files (`.log.*`) that
+  contain inserts/updates to the base file since the base file was produced.
+
+![](/assets/images/hudi_file_layout.png)
+
+Hudi adopts Multiversion Concurrency Control (MVCC),
+where [compaction](https://hudi.apache.org/docs/next/compaction) action merges
+logs and base files to produce new file slices
+and [cleaning](https://hudi.apache.org/docs/next/hoodie_cleaner) action gets rid
+of unused/older file slices to reclaim space on the file system.
+
+## File Groups
+
+## File Slices
+
+## Base Files 
+The base file name format is:
+
+TODO(vc): we should avoid any Java here and stil to just generic string representations
+
+```java
+/**
+ * fileId: a uuid for the file group to which a particular file belongs
+ * writeToken: a unique token per write operation
+ * instantTime: timestamp of the instant when commit started
+ * fileExtension: base file extension such as .parquet, .orc
+ */
+String.format("%s_%s_%s%s",fileId,writeToken,instantTime,fileExtension)
+```
+
+The log file name format is:
+
+```java
+/**
+ * fileId: a uuid for the file group to which a particular file belongs
+ * writeToken: a unique token per write operation
+ * baseCommitTime: timestamp of the instant when commit started
+ * logFileExtension: log file extension such as .log
+ * version: monotonically increasing, indicates the current version of log file
+ */
+String.format("%s_%s%s.%d_%s",fileId,baseCommitTime,logFileExtension,version,writeToken)
+```
+
+Together with base files and log files, file slices contain all versions of a
+group of records. Such a specification enables fine-grained multi-version
+concurrency control.
+
+## Log Files
+
+![](/assets/images/hudi_log_format_v2.png)
+
+# Timeline
+
+TODO(vc): need to be audited for completeness. e.g do we cover all actions. 
 
 At its core, Hudi maintains a `timeline` of all actions performed on the table
 at different `instants` of time that helps provide instantaneous views of the
@@ -113,31 +182,22 @@ to get all new data that was committed successfully since 10:00 hours, is able
 to very efficiently consume only the changed files without say scanning all the
 time buckets > 07:00.
 
-## File Layout
+## Actions
 
-Hudi organizes data tables into a directory structure under a base path (root
-directory for the table) on a distributed file system. The general layout
-structure is as follows:
+## Archived
 
-* All metadata of a Hudi table is located in `.hoodie` directory under the base
-  path.
-* Tables are broken up into partitions.
-* Within each partition, files are organized into file groups, uniquely
-  identified by a file ID.
-* Each file group contains several file slices.
-* Each slice contains a base file (`.parquet`) produced at a certain
-  commit/compaction instant time, along with set of log files (`.log.*`) that
-  contain inserts/updates to the base file since the base file was produced.
 
-![](/assets/images/hudi_file_layout.png)
+# Keys
+TODO(vc): should this be before. 
 
-Hudi adopts Multiversion Concurrency Control (MVCC),
-where [compaction](https://hudi.apache.org/docs/next/compaction) action merges
-logs and base files to produce new file slices
-and [cleaning](https://hudi.apache.org/docs/next/hoodie_cleaner) action gets rid
-of unused/older file slices to reclaim space on the file system.
+When writing data into Hudi, you model the records like how you would on a
+key-value store - specify a **key** field (unique for a single partition/across
+dataset), a **partition** field (denotes partition to place key into) and
+**precombine** field to determine how to handle duplicates in a batch of records
+written. This model enables Hudi to enforce primary key constraints like you
+would get on a database table.
 
-## Metadata Table
+# Metadata
 
 Metadata table is an internally-managed table which has the same structure as a
 Hudi Merge-On-Read table. The base path of metadata table is `.hoodie/metadata`
@@ -509,6 +569,17 @@ tracked [here](/hudi-common/src/main/avro/HoodieMetadata.avsc).
 
 </details>
 
+
+## Marker Files 
+
+## Table Properties
+
+## File Listings
+
+## Column Statistics
+
+## Multi-modal Indexes
+
 # Concurrency Control
 
 Hudi's concurrency model supports both Multi Version Concurrency Control (MVCC)
@@ -535,6 +606,8 @@ and Optimistic Concurrency Control (OCC).
 It may be helpful to understand the different guarantees provided
 by [write operations](https://hudi.apache.org/docs/write_operations) via Hudi.
 
+TODO(vc): does not seem like a good place for guarantees. Should n't this be part of user-docs
+
 ## Single Writer Guarantees
 
 - *UPSERT*: The target table will NEVER show duplicates.
@@ -556,49 +629,27 @@ With multiple writers using OCC, some of the above guarantees change as follows
 - *INCREMENTAL PULL*: Data consumption and checkpoints MIGHT be out of order due
   to multiple writer jobs finishing at different times.
 
-# Specification With Example
 
-## Key Requirements
+# Types & Schema Evolution
 
-When writing data into Hudi, you model the records like how you would on a
-key-value store - specify a **key** field (unique for a single partition/across
-dataset), a **partition** field (denotes partition to place key into) and
-**precombine** field to determine how to handle duplicates in a batch of records
-written. This model enables Hudi to enforce primary key constraints like you
-would get on a database table.
+TODO(vc): what types are supported and how is schema encoded/evolved
 
-## Data File Naming
+# Table Versions Evolution
 
-The base file name format is:
+# Writer Algorithm
 
-```java
-/**
- * fileId: a uuid for the file group to which a particular file belongs
- * writeToken: a unique token per write operation
- * instantTime: timestamp of the instant when commit started
- * fileExtension: base file extension such as .parquet, .orc
- */
-String.format("%s_%s_%s%s",fileId,writeToken,instantTime,fileExtension)
-```
+TODO(vc): sketch how a correct, consitent writer can write to into a Hudi table
 
-The log file name format is:
+# Reader Algorithm
 
-```java
-/**
- * fileId: a uuid for the file group to which a particular file belongs
- * writeToken: a unique token per write operation
- * baseCommitTime: timestamp of the instant when commit started
- * logFileExtension: log file extension such as .log
- * version: monotonically increasing, indicates the current version of log file
- */
-String.format("%s_%s%s.%d_%s",fileId,baseCommitTime,logFileExtension,version,writeToken)
-```
+TODO(vc): sketch how a correct, consitent reader can read from a Hudi table
 
-Together with base files and log files, file slices contain all versions of a
-group of records. Such a specification enables fine-grained multi-version
-concurrency control.
 
-## Example
+# Change History
+
+TODO(vc): change history and differences between different table versions. We are at 4 now.
+
+# Example
 
 Let us create a Hudi Merge-On-Read table with all indexes enabled and understand
 how the layout evolves. The base path of data table is `/tmp/hudi_trips` and the
