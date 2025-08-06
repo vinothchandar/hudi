@@ -170,6 +170,7 @@
     <spark35.version>3.5.5</spark35.version>
     <hudi.spark.module>hudi-spark3.5.x</hudi.spark.module>
     <avro.version>1.11.4</avro.version>
+    <arrow.version>17.0.0</arrow.version>
     <bijection-avro.version>0.9.8</bijection-avro.version>
     <caffeine.version>2.9.1</caffeine.version>
     <commons.io.version>2.14.0</commons.io.version>
@@ -842,6 +843,32 @@
             <artifactId>snappy-java</artifactId>
           </exclusion>
         </exclusions>
+        <scope>provided</scope>
+      </dependency>
+
+      <!-- Arrow -->
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-vector</artifactId>
+        <version>${arrow.version}</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-memory-core</artifactId>
+        <version>${arrow.version}</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-memory-netty</artifactId>
+        <version>${arrow.version}</version>
+        <scope>provided</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.arrow</groupId>
+        <artifactId>arrow-format</artifactId>
+        <version>${arrow.version}</version>
         <scope>provided</scope>
       </dependency>
 
